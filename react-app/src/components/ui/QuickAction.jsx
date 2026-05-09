@@ -4,18 +4,19 @@ import { motion } from 'framer-motion';
 export const QuickAction = ({ ic: Icon, label, desc, grad = 'from-emerald-500 to-teal-400', isDark, delay = 0, onClick }) => {
   const [hovered, setHovered] = useState(false);
   const config = {
-    'from-emerald-500 to-teal-400': { bg: '#10B981', bgLight: '#34D399' },
-    'from-teal-500 to-emerald-400': { bg: '#14B8A6', bgLight: '#5EEAD4' },
-    'from-green-500 to-emerald-600': { bg: '#10B981', bgLight: '#6EE7B7' },
-    'from-emerald-600 to-green-500': { bg: '#059669', bgLight: '#34D399' },
+    'from-emerald-400 to-teal-500': { bg: '#34D399', bgLight: '#14B8A6' },
+    'from-blue-400 to-indigo-500': { bg: '#60A5FA', bgLight: '#6366F1' },
+    'from-purple-400 to-pink-500': { bg: '#C084FC', bgLight: '#EC4899' },
+    'from-red-400 to-rose-500': { bg: '#F87171', bgLight: '#F43F5E' },
   };
-  const colors = config[grad] || config['from-emerald-500 to-teal-400'];
+  const colors = config[grad] || config['from-emerald-400 to-teal-500'];
 
   return (
-    <motion.button initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay }} whileHover={{ y: -8 }} whileTap={{ scale: 0.96 }} onClick={onClick} onHoverStart={() => setHovered(true)} onHoverEnd={() => setHovered(false)} className={`relative overflow-hidden p-5 rounded-3xl text-left group ${isDark ? 'bg-gray-800/50 border border-gray-700/40' : 'bg-white/70 border border-white/60 shadow-md'}`}>
-      <motion.div className="absolute inset-0" animate={{ opacity: hovered ? 1 : 0 }} transition={{ duration: 0.3 }}>
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-teal-500/5" />
-        <div className="absolute -top-16 -right-16 w-32 h-32 rounded-full blur-2xl" style={{ backgroundColor: colors.bg + '15' }} />
+    <motion.button initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay }} whileHover={{ y: -8, scale: 1.02 }} whileTap={{ scale: 0.96 }} onClick={onClick} onHoverStart={() => setHovered(true)} onHoverEnd={() => setHovered(false)} className={`relative overflow-hidden p-5 rounded-3xl text-left group transition-shadow ${isDark ? 'bg-gray-800/60 border border-gray-700/50 hover:shadow-[0_8px_30px_rgb(0,0,0,0.3)]' : 'bg-white/80 border border-gray-100 shadow-sm hover:shadow-xl'}`}>
+      <motion.div className="absolute inset-0 pointer-events-none" animate={{ opacity: hovered ? 1 : 0 }} transition={{ duration: 0.4 }}>
+        <div className={`absolute inset-0 bg-gradient-to-br ${grad} opacity-[0.03]`} />
+        <motion.div className="absolute -top-16 -right-16 w-32 h-32 rounded-full blur-[40px]" style={{ backgroundColor: colors.bg }} animate={{ scale: hovered ? 1.5 : 1, opacity: hovered ? 0.2 : 0 }} transition={{ duration: 0.6 }} />
+        <motion.div className="absolute -bottom-16 -left-16 w-32 h-32 rounded-full blur-[40px]" style={{ backgroundColor: colors.bgLight }} animate={{ scale: hovered ? 1.5 : 1, opacity: hovered ? 0.2 : 0 }} transition={{ duration: 0.6, delay: 0.1 }} />
       </motion.div>
       <div className="relative z-10">
         <div className="relative w-12 h-12 mb-3">
