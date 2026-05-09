@@ -1,0 +1,50 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Ic } from '../../icons';
+
+export const Navbar = ({ isDark, toggle, onMenu, onUp, q, setQ, user, onLogout }) => {
+  const [sf, setSf] = useState(false);
+  const [um, setUm] = useState(false);
+  const ref = useRef(null);
+  
+  useEffect(() => { 
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setUm(false); }; 
+    document.addEventListener('mousedown', h); 
+    return () => document.removeEventListener('mousedown', h); 
+  }, []);
+
+  return (
+    <div className={`sticky top-0 z-30 px-4 md:px-6 py-3 border-b ${isDark ? 'bg-gray-900/50 border-gray-800/40' : 'bg-white/30 border-white/50'} backdrop-blur-2xl`}>
+      <div className="flex items-center gap-3">
+        <button onClick={onMenu} className={`p-2 rounded-xl md:hidden ${isDark ? 'hover:bg-gray-700 text-white' : 'hover:bg-emerald-50 text-gray-700'}`}><Ic.Menu /></button>
+        <div className={`flex-1 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl transition-all ${sf ? isDark ? 'bg-gray-700/60 border border-emerald-500/30' : 'bg-white border border-emerald-300' : isDark ? 'bg-gray-800/30 border border-gray-700/40' : 'bg-white/40 border border-white/50'}`}>
+          <span className={sf ? 'text-emerald-500' : isDark ? 'text-gray-600' : 'text-gray-400'}><Ic.Search /></span>
+          <input value={q} onChange={(e) => setQ(e.target.value)} onFocus={() => setSf(true)} onBlur={() => setSf(false)} placeholder="Search files..." className={`flex-1 bg-transparent outline-none text-sm ${isDark ? 'text-white placeholder-gray-600' : 'text-gray-700 placeholder-gray-400'}`} />
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={toggle} className={`p-2.5 rounded-xl ${isDark ? 'bg-gray-700/60 text-emerald-400' : 'bg-emerald-100/60 text-emerald-600'}`}>{isDark ? <Ic.Sun /> : <Ic.Moon />}</button>
+          <button onClick={onUp} className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-bold text-sm shadow-lg shadow-emerald-500/20"><Ic.Upload /> Upload</button>
+          <div className="relative" ref={ref}>
+            <button onClick={() => setUm(!um)} className={`w-9 h-9 rounded-2xl overflow-hidden border-2 ${isDark ? 'border-emerald-500/30' : 'border-emerald-400/30'} shadow-md`}>
+              <img src="https://placehold.co/36x36/10B981/fff?text=A" alt="" className="w-full h-full object-cover" />
+            </button>
+            <AnimatePresence>
+              {um && (
+                <motion.div initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.95 }} className={`absolute right-0 top-12 w-48 rounded-2xl overflow-hidden shadow-2xl ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
+                  <div className={`p-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
+                    <p className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-800'}`}>{user.name}</p>
+                    <p className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{user.email}</p>
+                  </div>
+                  <div className="p-2 space-y-0.5">
+                    <button className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs ${isDark ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-emerald-50 text-gray-600'}`}><Ic.Settings /> Settings</button>
+                    <button onClick={onLogout} className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs text-red-500 hover:bg-red-50"><Ic.Shield /> Logout</button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
