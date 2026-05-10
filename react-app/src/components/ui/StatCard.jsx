@@ -34,12 +34,12 @@ export const StatCard = ({ ic: Icon, title: label, val: value, sub: change, colo
   }
 
   const config = {
-    'from-emerald-400 to-teal-500': { bg: '#34D399', glow: 'rgba(52,211,153,0.3)' },
-    'from-green-500 to-emerald-600': { bg: '#10B981', glow: 'rgba(16,185,129,0.3)' },
-    'from-teal-400 to-green-500': { bg: '#14B8A6', glow: 'rgba(20,184,166,0.3)' },
-    'from-emerald-500 to-green-600': { bg: '#10B981', glow: 'rgba(16,185,129,0.3)' },
+    'emerald': { bg: '#10B981', glow: 'rgba(16,185,129,0.4)', light: '#34D399', dark: '#047857' },
+    'blue': { bg: '#3B82F6', glow: 'rgba(59,130,246,0.4)', light: '#60A5FA', dark: '#1D4ED8' },
+    'purple': { bg: '#8B5CF6', glow: 'rgba(139,92,246,0.4)', light: '#A78BFA', dark: '#6D28D9' },
+    'orange': { bg: '#F97316', glow: 'rgba(249,115,22,0.4)', light: '#FB923C', dark: '#C2410C' },
   };
-  const colors = config[grad] || config['from-emerald-400 to-teal-500'];
+  const colors = config[grad] || config['emerald'];
 
   return (
     <motion.div
@@ -50,15 +50,44 @@ export const StatCard = ({ ic: Icon, title: label, val: value, sub: change, colo
       onMouseMove={handleMouseMove}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { x.set(0); y.set(0); setHovered(false); }}
-      className="relative"
+      className="relative group cursor-pointer"
     >
-      <div className={`relative overflow-hidden rounded-3xl p-5 ${isDark ? 'bg-gray-800/50 border border-gray-700/40' : 'bg-white/70 border border-white/60 shadow-lg'}`}>
+      {/* Animated Under-Glow / Background Blur */}
+      <motion.div 
+        className="absolute inset-0 -z-10 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-2xl"
+        style={{
+          background: `linear-gradient(135deg, ${colors.light}, ${colors.dark})`,
+          transform: 'scale(0.95) translateY(10px)',
+        }}
+        animate={hovered ? { scale: 1.05, translateY: 5 } : { scale: 0.95, translateY: 10 }}
+        transition={{ type: "spring", stiffness: 200, damping: 20 }}
+      />
+      
+      {/* Moving Blobs behind the card (ambient animation) */}
+      <motion.div 
+        className="absolute -inset-1 -z-10 rounded-[2rem] opacity-0 group-hover:opacity-100 transition-opacity duration-500 overflow-hidden" 
+      >
+        <motion.div 
+          className="absolute w-32 h-32 rounded-full blur-[30px]"
+          animate={hovered ? { x: [0, 100, 0], y: [0, 50, 0] } : {}}
+          transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+          style={{ background: colors.light, opacity: 0.5, top: '-20%', left: '-10%' }}
+        />
+        <motion.div 
+          className="absolute w-32 h-32 rounded-full blur-[30px]"
+          animate={hovered ? { x: [0, -100, 0], y: [0, -50, 0] } : {}}
+          transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
+          style={{ background: colors.dark, opacity: 0.5, bottom: '-20%', right: '-10%' }}
+        />
+      </motion.div>
+
+      <div className={`relative overflow-hidden rounded-3xl p-5 ${isDark ? 'bg-gray-800/80 border border-gray-700/50 backdrop-blur-xl' : 'bg-white/90 border border-white/60 backdrop-blur-xl shadow-lg'}`}>
         <motion.div
-          className="absolute w-32 h-32 rounded-full blur-3xl pointer-events-none"
+          className="absolute w-32 h-32 rounded-full blur-[40px] pointer-events-none"
           style={{
-            background: `radial-gradient(circle, \${colors.glow} 0%, transparent 70%)`,
-            left: useTransform(mouseX, [-1, 1], ['0%', '100%']),
-            top: useTransform(mouseY, [-1, 1], ['0%', '100%']),
+            background: `radial-gradient(circle, ${colors.glow} 0%, transparent 70%)`,
+            left: useTransform(mouseX, [-1, 1], ['-20%', '120%']),
+            top: useTransform(mouseY, [-1, 1], ['-20%', '120%']),
           }}
         />
         <div className="absolute inset-0 opacity-[0.04]">
@@ -88,11 +117,11 @@ export const StatCard = ({ ic: Icon, title: label, val: value, sub: change, colo
               </motion.div>
             )}
           </div>
-          <motion.div className={`text-2xl font-black mb-0.5 \${isDark ? 'text-white' : 'text-gray-900'}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: delay + 0.15 }}>{count.toLocaleString()}{typeof value === 'string' && isNaN(parseInt(value)) ? value : ''}</motion.div>
-          <motion.p className={`text-xs font-medium \${isDark ? 'text-gray-400' : 'text-gray-500'}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: delay + 0.2 }}>{label}</motion.p>
-          <div className={`mt-3 h-1.5 rounded-full overflow-hidden \${isDark ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
-            <motion.div className="h-full rounded-full relative" style={{ background: `linear-gradient(90deg, \${colors.bg}, \${colors.bg}88)` }} initial={{ width: 0 }} animate={{ width: `\${Math.min((targetNum / 10) * 100, 100)}%` }} transition={{ duration: 1.5, delay: delay + 0.3, ease: 'easeOut' }}>
-              <motion.div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent" animate={{ x: ['-100%', '200%'] }} transition={{ duration: 2, repeat: Infinity, ease: 'linear' }} />
+          <motion.div className={`text-3xl font-black mb-1 drop-shadow-sm ${isDark ? 'text-white' : 'text-gray-900'}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: delay + 0.15 }}>{count.toLocaleString()}{typeof value === 'string' && isNaN(parseInt(value)) ? value.replace(/[0-9]/g, '') : ''}</motion.div>
+          <motion.p className={`text-sm font-semibold tracking-wide uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: delay + 0.2 }}>{label}</motion.p>
+          <div className={`mt-4 h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-gray-700/50' : 'bg-gray-100'} shadow-inner`}>
+            <motion.div className="h-full rounded-full relative overflow-hidden" style={{ background: `linear-gradient(90deg, ${colors.light}, ${colors.bg})` }} initial={{ width: 0 }} animate={{ width: `${Math.min((targetNum / 100) * 100, 100)}%` }} transition={{ duration: 1.5, delay: delay + 0.3, ease: 'easeOut' }}>
+              <motion.div className="absolute inset-0 bg-white/40" animate={{ x: ['-100%', '200%'] }} transition={{ duration: 2, repeat: Infinity, ease: 'linear' }} />
             </motion.div>
           </div>
         </div>

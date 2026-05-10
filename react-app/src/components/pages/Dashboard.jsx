@@ -24,18 +24,57 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
 
   const star = (id) => { setFiles(files.map(f => f.id === id ? { ...f, star: !f.star } : f)); setCm(null); };
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { 
+      opacity: 1, 
+      transition: { staggerChildren: 0.1, delayChildren: 0.1 } 
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+  };
+
   return (
-    <div className="px-4 py-4 md:px-8 md:py-8 w-full space-y-8 max-w-[1920px] mx-auto">
+    <motion.div 
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+      className="px-4 py-4 md:px-8 md:py-8 w-full space-y-8 max-w-[1920px] mx-auto overflow-hidden"
+    >
       {/* Header & Stats */}
       {cat === 'home' && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+        <motion.div variants={itemVariants} className="space-y-8">
           <div>
-            <h1 className={`text-3xl md:text-4xl font-black mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>Welcome back, Alex! 👋</h1>
-            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Here's what's happening with your files today.</p>
+            <motion.h1 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className={`text-3xl md:text-4xl font-black mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}
+            >
+              Welcome back, Alex! 👋
+            </motion.h1>
+            <motion.p 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+            >
+              Here's what's happening with your files today.
+            </motion.p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {stats.map((s, i) => <StatCard key={i} {...s} isDark={isDark} />)}
-          </div>
+          <motion.div 
+            variants={containerVariants}
+            className="grid grid-cols-1 md:grid-cols-3 gap-4"
+          >
+            {stats.map((s, i) => (
+              <motion.div key={i} variants={itemVariants} whileHover={{ y: -5, scale: 1.02 }} transition={{ type: 'spring', stiffness: 400 }}>
+                <StatCard {...s} isDark={isDark} />
+              </motion.div>
+            ))}
+          </motion.div>
         </motion.div>
       )}
 
@@ -43,14 +82,20 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
       <div className="flex flex-col space-y-8">
         {/* Quick Actions (Home only) */}
         {cat === 'home' && !q && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+          <motion.div variants={itemVariants}>
             <h2 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-800'}`}><Ic.Star /> Quick Access</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-6">
-              <QuickAction ic={Ic.Folder} label="New Folder" desc="Create directory" grad="from-blue-400 to-indigo-500" isDark={isDark} />
-              <QuickAction ic={Ic.Upload} label="Upload" desc="Any file types" grad="from-emerald-400 to-teal-500" isDark={isDark} />
-              <QuickAction ic={Ic.Share} label="Shared" desc="View active links" grad="from-purple-400 to-pink-500" isDark={isDark} />
-              <QuickAction ic={Ic.Trash} label="Trash" desc="Deleted files" grad="from-red-400 to-rose-500" isDark={isDark} />
-            </div>
+            <motion.div variants={containerVariants} className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-6">
+              {[
+                { ic: Ic.Folder, label: "New Folder", desc: "Create directory", grad: "from-blue-400 to-indigo-500" },
+                { ic: Ic.Upload, label: "Upload", desc: "Any file types", grad: "from-emerald-400 to-teal-500" },
+                { ic: Ic.Share, label: "Shared", desc: "View active links", grad: "from-purple-400 to-pink-500" },
+                { ic: Ic.Trash, label: "Trash", desc: "Deleted files", grad: "from-red-400 to-rose-500" }
+              ].map((action, i) => (
+                <motion.div key={i} variants={itemVariants}>
+                  <QuickAction {...action} isDark={isDark} />
+                </motion.div>
+              ))}
+            </motion.div>
           </motion.div>
         )}
 
@@ -134,36 +179,43 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
         )}
 
         {/* Files Grid */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+        <motion.div variants={itemVariants} className="z-10">
           <div className="flex items-center justify-between mb-4">
             <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
               {q ? 'Search Results' : cat === 'home' ? 'Recent Files' : `All ${cat === 'files' ? '' : cat} files`}
             </h2>
             <div className="flex items-center gap-2">
-              <button className={`p-2 rounded-xl ${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'} shadow-sm`}><Ic.Grid /></button>
-              <button className={`p-2 rounded-xl ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}><Ic.List /></button>
+              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className={`p-2 rounded-xl ${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'} shadow-sm`}><Ic.Grid /></motion.button>
+              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className={`p-2 rounded-xl ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}><Ic.List /></motion.button>
             </div>
           </div>
           
           {filt.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+            <motion.div variants={containerVariants} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
               <AnimatePresence>
                 {filt.map((f, i) => (
-                  <motion.div key={f.id} layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ delay: i * 0.05 }}>
+                  <motion.div 
+                    key={f.id} 
+                    variants={itemVariants}
+                    layout 
+                    exit={{ opacity: 0, scale: 0.8, filter: "blur(5px)" }} 
+                    whileHover={{ y: -8, scale: 1.03, zIndex: 10 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  >
                     <FileCard file={f} isDark={isDark} onPreview={() => openPreview(f)} isGrid={true} idx={i} onDelete={(id) => setFiles(files.filter(file => file.id !== id))} />
                   </motion.div>
                 ))}
               </AnimatePresence>
-            </div>
+            </motion.div>
           ) : (
-            <div className={`p-12 text-center rounded-3xl ${isDark ? 'bg-gray-800/50 border border-gray-700/50' : 'bg-gray-50/50 border border-gray-200 border-dashed'}`}>
-              <div className={`w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 ${isDark ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400'}`}><Ic.Search /></div>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className={`p-12 text-center rounded-3xl ${isDark ? 'bg-gray-800/50 border border-gray-700/50' : 'bg-gray-50/50 border border-gray-200 border-dashed'}`}>
+              <motion.div animate={{ rotate: [0, -10, 10, -10, 10, 0] }} transition={{ repeat: Infinity, duration: 3, delay: 1 }} className={`w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 ${isDark ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400'}`}><Ic.Search /></motion.div>
               <p className={`font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>No files found</p>
               <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Try a different search term or category.</p>
-            </div>
+            </motion.div>
           )}
         </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 };
