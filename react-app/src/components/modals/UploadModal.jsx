@@ -11,22 +11,130 @@ export const UploadModal = ({ open, close, isDark, onUpload }) => {
   const drop = (e) => { e.preventDefault(); setDrag(false); handleFiles(Array.from(e.dataTransfer.files)); };
   const pick = (e) => { handleFiles(Array.from(e.target.files)); };
   const handleFiles = (fs) => {
-    fs.forEach((f) => {
+    fs.forEach(async (f) => {
       const id = Date.now() + Math.random();
       setProgress((p) => ({ ...p, [id]: { name: f.name, prog: 0 } }));
-      let p = 0;
-      const iv = setInterval(() => {
-        p += Math.random() * 20 + 5;
-        if (p >= 100) {
-          p = 100; clearInterval(iv);
-          const tp = f.type.startsWith('image') ? 'image' : f.type.startsWith('video') ? 'video' : f.type.startsWith('audio') ? 'music' : 'doc';
-          setTimeout(() => {
-            onUpload({ id: Date.now(), name: f.name, type: tp, size: (f.size / 1048576).toFixed(1) + ' MB', date: new Date().toISOString().split('T')[0] });
-            setProgress((prev) => { const n = { ...prev }; delete n[id]; return n; });
-          }, 300);
-        } else { setProgress((prev) => ({ ...prev, [id]: { ...prev[id], prog: p } })); }
-      }, 150);
+      
+      let storedToken = localStorage.getItem('tgBotToken');
+      if (storedToken === 'null' || storedToken === 'undefined') storedToken = null;
+      const tgToken = (storedToken ? storedToken.trim() : null) || '8721702939:AAGtDcMWdQPZYxrWGuCBvZ27UTbs4eBzH_E';
+      
+      let storedChatId = localStorage.getItem('tgChatId');
+      if (storedChatId) {
+        // Extract only digits and optional leading minus sign
+        const match = storedChatId.match(/-?\d+/);
+        storedChatId = match ? match[0] : null;
+      }
+      if (storedChatId === 'null' || storedChatId === 'undefined' || storedChatId === '') storedChatId = null;
+      let tgChatId = (storedChatId ? storedChatId.trim() : null) || '790875483';
+
+      if (tgToken && !tgChatId) {
+        const userInput = prompt("Telegram cloud upload is enabled but your Chat ID is missing!\nPlease enter your Telegram Chat ID (You can get it from @userinfobot):");
+        if (userInput) {
+          tgChatId = userInput.trim();
+          localStorage.setItem('tgChatId', tgChatId);
+        }
+      }
+
+      // Bot API limits free document upload to 50MB (equivalent to ~52428800 bytes)
+      const isOversizedForTg = f.size > 50 * 1024 * 1024;
+
+      if (tgToken && tgChatId && !isOversizedForTg) {
+        // Send to Telegram
+        try {
+          const formData = new FormData();
+          formData.append('chat_id', tgChatId);
+          formData.append('document', f);
+          formData.append('caption', `Uploaded from T-Drive Dashboard: ${f.name}`);
+
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', `https://api.telegram.org/bot${tgToken}/sendDocument`);
+          
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const p = (e.loaded / e.total) * 100;
+              setProgress((prev) => ({ ...prev, [id]: { ...prev[id], prog: p } }));
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              completeUpload(f, id);
+            } else {
+              let errorMsg = 'Unknown error';
+              try {
+                const res = JSON.parse(xhr.responseText);
+                errorMsg = res.description || xhr.responseText;
+              } catch(e) {
+                errorMsg = xhr.responseText;
+              }
+              console.error('Telegram upload failed:', xhr.responseText);
+              alert('Failed to backup to Telegram: ' + errorMsg);
+              completeUpload(f, id); // Still save locally
+            }
+          };
+
+          xhr.onerror = () => {
+            console.error('Telegram upload error');
+            alert('Failed to upload to Telegram due to a network error.');
+            completeUpload(f, id); // Still save locally
+          };
+
+          xhr.send(formData);
+        } catch (err) {
+          console.error('Error preparing Telegram upload:', err);
+          fallbackSimulateUpload(f, id);
+        }
+      } else {
+        if (isOversizedForTg) {
+          console.warn("File was skipped for Telegram cloud because it exceeds the bot API's 50MB limit. Rendering locally instead.");
+          // We can silently fallback to browser storage, or throw a gentle warning if desired.
+        }
+        // No telegram config or oversized, just simulate upload locally
+        fallbackSimulateUpload(f, id);
+      }
     });
+  };
+
+  const completeUpload = (f, id) => {
+    let tp = 'doc';
+    if (f.type.startsWith('image')) tp = 'image';
+    else if (f.type.startsWith('video')) tp = 'video';
+    else if (f.type.startsWith('audio')) tp = 'music';
+    
+    // Memory Optimization & Browser Policy workaround:
+    // ALWAYS use createObjectURL. Base64 (readAsDataURL) for PDFs is blocked by modern Chrome/Safari strict security policies in iframes.
+    // Native blob: URLs are trusted and render flawlessly.
+    finalize(URL.createObjectURL(f), tp);
+
+    function finalize(fileData, type) {
+      setTimeout(() => {
+        onUpload({ 
+          id: Date.now(), 
+          name: f.name, 
+          type: type, 
+          size: (f.size / 1048576).toFixed(1) + ' MB', 
+          date: new Date().toISOString().split('T')[0],
+          url: fileData, // Store locally
+          source: 'local'
+        });
+        setProgress((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      }, 300);
+    }
+  };
+
+  const fallbackSimulateUpload = (f, id) => {
+    let p = 0;
+    const iv = setInterval(() => {
+      p += Math.random() * 20 + 5;
+      if (p >= 100) {
+        setProgress((prev) => ({ ...prev, [id]: { ...prev[id], prog: 100 } }));
+        clearInterval(iv);
+        completeUpload(f, id);
+      } else {
+        setProgress((prev) => ({ ...prev, [id]: { ...prev[id], prog: p } }));
+      }
+    }, 150);
   };
 
   return (

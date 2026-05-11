@@ -1,10 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
-import { tIcon, tGrad, fmt } from '../../utils';
+import { tIcon, tGrad, fmt, getFileIcon } from '../../utils';
 
 export const FileCard = ({ file, isGrid, isDark, onPreview, onDelete, idx }) => {
-  const TI = tIcon(file.type);
+  const TI = getFileIcon(file.name, file.type);
   return (
     <motion.div layout initial={{ opacity: 0, y: 25 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.4, delay: idx * 0.04 }} whileHover={{ scale: 1.02, y: -4 }} onClick={() => onPreview(file)} className={`group relative rounded-3xl overflow-hidden cursor-pointer transition-all duration-300 ${isDark ? 'bg-gray-800/40 hover:bg-gray-800/70 border border-gray-700/50 hover:shadow-[0_8px_30px_rgb(0,0,0,0.3)]' : 'bg-white border border-gray-100 shadow-sm hover:shadow-xl'}`}>
       <motion.div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
@@ -13,12 +13,34 @@ export const FileCard = ({ file, isGrid, isDark, onPreview, onDelete, idx }) => 
       </motion.div>
       {isGrid && (
         <div className="relative h-36 overflow-hidden">
-          {file.thumb ? <img src={file.thumb} alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" /> : <div className={`h-full flex items-center justify-center bg-gradient-to-br ${tGrad(file.type)} opacity-10 group-hover:opacity-20 transition-opacity duration-500`}><motion.div whileHover={{ scale: 1.1, rotate: 5 }} transition={{ type: "spring", stiffness: 300 }} className="text-5xl opacity-40"><TI /></motion.div></div>}
+          {(file.thumb || (file.type === 'image' && file.url)) ? (
+            <img src={file.thumb || file.url} alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+          ) : (file.type === 'video' && file.url) ? (
+            <video src={file.url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 pointer-events-none" preload="metadata" />
+          ) : (
+            <div className={`relative h-full flex items-center justify-center ${file.type === 'doc' ? 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700' : ''} transition-all duration-500`}>
+              {file.type !== 'doc' && (
+                <div className={`absolute inset-0 bg-gradient-to-br ${tGrad(file.type)} opacity-10 group-hover:opacity-20 transition-opacity duration-500`} />
+              )}
+              <motion.div whileHover={{ scale: 1.1, rotate: 5 }} transition={{ type: "spring", stiffness: 300 }} className={`relative z-10 ${file.type === 'doc' ? 'opacity-100' : 'opacity-80 text-emerald-600 dark:text-emerald-400'} scale-[2.5]`}><TI /></motion.div>
+            </div>
+          )}
           {file.type === 'video' && <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 backdrop-blur-[2px] transition-all duration-300"><motion.div whileHover={{ scale: 1.1 }} className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center text-emerald-600 shadow-lg"><Ic.Play /></motion.div></div>}
         </div>
       )}
       <div className={`relative z-10 p-5 ${!isGrid ? 'flex items-center gap-4' : ''}`}>
-        {!isGrid && <div className={`relative w-12 h-12 rounded-2xl bg-gradient-to-br ${tGrad(file.type)} text-white flex items-center justify-center flex-shrink-0 shadow-md overflow-hidden`}><motion.div whileHover={{ scale: 1.2, rotate: 10 }} transition={{ type: "spring" }}><TI /></motion.div><motion.div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent" animate={{ x: ['-100%', '200%'] }} transition={{ duration: 2, repeat: Infinity, repeatDelay: 2 }} /></div>}
+        {!isGrid && (
+          <div className={`relative w-12 h-12 rounded-2xl ${file.type === 'doc' ? 'bg-gray-100 dark:bg-gray-800' : `bg-gradient-to-br ${tGrad(file.type)} text-white`} flex items-center justify-center flex-shrink-0 shadow-md overflow-hidden`}>
+            {(file.thumb || (file.type === 'image' && file.url)) ? (
+              <img src={file.thumb || file.url} alt="" className="w-full h-full object-cover" />
+            ) : (file.type === 'video' && file.url) ? (
+              <video src={file.url} className="w-full h-full object-cover pointer-events-none" preload="metadata" />
+            ) : (
+              <motion.div whileHover={{ scale: 1.2, rotate: 10 }} transition={{ type: "spring" }}><TI /></motion.div>
+            )}
+            <motion.div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent" animate={{ x: ['-100%', '200%'] }} transition={{ duration: 2, repeat: Infinity, repeatDelay: 2 }} />
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h3 className={`font-semibold truncate text-sm ${isDark ? 'text-white' : 'text-gray-800'}`}>{file.name}</h3>

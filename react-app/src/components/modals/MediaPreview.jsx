@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
-import { tGrad, tIcon, fmt, formatTime } from '../../utils';
+import { tGrad, tIcon, fmt, formatTime, getFileIcon } from '../../utils';
 
 export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
   const audioRef = useRef(null);
@@ -122,8 +122,8 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
         {/* Header */}
         <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${tGrad(file.type)} text-white flex items-center justify-center shadow-md`}>
-              {tIcon(file.type)()}
+            <div className={`w-10 h-10 rounded-xl ${file.type === 'doc' ? 'bg-gray-100 dark:bg-gray-800' : `bg-gradient-to-br ${tGrad(file.type)} text-white`} flex items-center justify-center shadow-md`}>
+              {getFileIcon(file.name, file.type)()}
             </div>
             <div>
               <h2 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-800'}`}>{file.name}</h2>
@@ -142,7 +142,7 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
           {file.type === 'music' && (
             <div className="flex flex-col items-center">
               <motion.div className="w-48 h-48 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-2xl mb-8 flex items-center justify-center overflow-hidden" animate={isPlaying ? { scale: [1, 1.03, 1] } : { scale: 1 }} transition={{ duration: 2, repeat: isPlaying ? Infinity : 0, ease: 'easeInOut' }}>
-                <motion.div animate={isPlaying ? { rotate: 360 } : {}} transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}>
+                <motion.div animate={isPlaying ? { rotate: 360 } : {}} transition={{ duration: 8, repeat: Infinity, ease: 'linear' }} className="scale-[3] text-white">
                   <Ic.Music />
                 </motion.div>
               </motion.div>
@@ -172,15 +172,20 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
                 </button>
                 <input type="range" min="0" max="1" step="0.01" value={isMuted ? 0 : volume} onChange={(e) => { setVolume(parseFloat(e.target.value)); setIsMuted(false); }} className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer bg-gray-700 accent-emerald-500" />
               </div>
-              <audio ref={audioRef} src={file.preview || ''} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={() => setIsPlaying(false)} preload="metadata" />
+              <audio ref={audioRef} src={file.url || file.preview || ''} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={() => setIsPlaying(false)} preload="metadata" />
             </div>
           )}
 
           {/* VIDEO PLAYER */}
           {file.type === 'video' && (
-            <div className="relative bg-black rounded-2xl overflow-hidden">
-              <video ref={videoRef} src={file.preview} className="w-full aspect-video object-contain bg-black" onClick={toggleVideoPlay} onTimeUpdate={handleVideoTimeUpdate} onLoadedMetadata={handleVideoLoadedMetadata} onEnded={() => setVideoPlaying(false)} />
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+            <div className="relative bg-black rounded-2xl overflow-hidden group">
+              <video ref={videoRef} src={file.url || file.preview} className="w-full aspect-video object-contain bg-black" onClick={toggleVideoPlay} onTimeUpdate={handleVideoTimeUpdate} onLoadedMetadata={handleVideoLoadedMetadata} onEnded={() => setVideoPlaying(false)} />
+              {!file.url && !file.preview && (
+                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <span className="text-white/50 text-sm">No video source available</span>
+                 </div>
+              )}
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                 <div onClick={handleVideoProgressClick} className="h-1 rounded-full cursor-pointer mb-3 bg-white/20 hover:h-1.5 transition-all">
                   <div className="h-full rounded-full bg-emerald-500 relative" style={{ width: videoDuration ? `${(videoTime / videoDuration) * 100}%` : '0%' }}>
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white opacity-0 hover:opacity-100 transition-opacity" />
@@ -217,38 +222,44 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
                 onMouseUp={handleImageMouseUp}
                 onMouseLeave={handleImageMouseUp}
               >
-                <img src={file.preview} alt={file.name} className="max-w-full max-h-[60vh] object-contain rounded-lg" draggable={false} />
+                <img src={file.url || file.preview || `https://source.unsplash.com/random/1200x800?${file.name.split('.')[0]}`} alt={file.name} className="max-w-full max-h-[60vh] object-contain rounded-lg" draggable={false} />
               </motion.div>
             </div>
           )}
 
           {/* DOCUMENT VIEWER */}
           {file.type === 'doc' && (
-            <div className="relative bg-gray-100 rounded-2xl overflow-hidden" style={{ minHeight: 400 }}>
-              {file.preview ? (
-                <div className="flex items-center justify-center p-8">
-                  <div className={`w-full max-w-md rounded-2xl overflow-hidden shadow-xl ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-                    <div className="h-48 bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-                      <div className="text-white text-center">
-                        <Ic.FileText />
-                        <p className="mt-2 font-bold text-lg">{file.name.split('.').pop().toUpperCase()}</p>
+            <div className="relative bg-gray-100 rounded-2xl overflow-hidden w-full flex items-center justify-center" style={{ minHeight: '60vh' }}>
+              {(file.url || file.preview) && file.name.toLowerCase().match(/\.(pdf)$/) ? (
+                <object data={file.url || file.preview} type="application/pdf" className="absolute inset-0 w-full h-full border-0 bg-white">
+                  <iframe src={file.url || file.preview} className="w-full h-full border-0 bg-white" title="Document Preview" />
+                </object>
+              ) : (file.url || file.preview) && file.name.toLowerCase().match(/\.(txt|csv)$/) ? (
+                <iframe src={file.url || file.preview} className="absolute inset-0 w-full h-full border-0 bg-white" title="Document Preview" />
+              ) : (file.url || file.preview) ? (
+                <div className="flex justify-center p-8 absolute inset-0 overflow-y-auto bg-gray-50/50">
+                  <div className={`w-full max-w-md rounded-2xl overflow-hidden shadow-xl h-fit ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
+                    <div className="h-48 flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-700">
+                      <div className="text-center scale-150">
+                        {getFileIcon(file.name, file.type)()}
+                        <p className="mt-4 font-bold text-sm text-gray-500">{file.name.split('.').pop().toUpperCase()}</p>
                       </div>
+                      <a href={file.url || file.preview} download={file.name} className="mt-4 px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-colors text-sm font-semibold flex items-center gap-2">
+                        <Ic.Download /> Download to View
+                      </a>
                     </div>
                     <div className="p-6">
-                      <h4 className={`font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>{file.name}</h4>
+                      <h4 className={`font-bold mb-2 break-all ${isDark ? 'text-white' : 'text-gray-800'}`}>{file.name}</h4>
                       <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{file.size}</p>
-                      <div className={`mt-4 p-3 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                        <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Document preview available</p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <div className={`w-2 h-2 rounded-full bg-emerald-500`} />
-                          <span className={`text-xs ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>Ready to view</span>
-                        </div>
+                      <div className={`mt-4 p-4 rounded-xl ${isDark ? 'bg-gray-700/50 text-gray-300' : 'bg-amber-50 text-amber-800'} text-sm`}>
+                        <p className="font-semibold mb-1">Preview not natively supported</p>
+                        <p className="text-xs opacity-80">Browsers cannot natively preview {file.name.split('.').pop().toUpperCase()} files. Please download the file to view it on your device.</p>
                       </div>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-64">
+                <div className="flex items-center justify-center h-full absolute inset-0">
                   <div className="text-center">
                     <div className={`w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br ${tGrad(file.type)} text-white flex items-center justify-center shadow-lg mb-4`}>
                       <Ic.FileText />

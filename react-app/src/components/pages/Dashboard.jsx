@@ -10,6 +10,7 @@ import { FileCard } from '../ui/FileCard';
 
 export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
   const [cm, setCm] = useState(null); // context menu file id
+  const [isGrid, setIsGrid] = useState(true); // grid or list view state
 
   const stats = [
     { title: 'Total Files', val: files.length, sub: '+12% this week', color: 'emerald', ic: Ic.FileText },
@@ -185,13 +186,13 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
               {q ? 'Search Results' : cat === 'home' ? 'Recent Files' : `All ${cat === 'files' ? '' : cat} files`}
             </h2>
             <div className="flex items-center gap-2">
-              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className={`p-2 rounded-xl ${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'} shadow-sm`}><Ic.Grid /></motion.button>
-              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className={`p-2 rounded-xl ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}><Ic.List /></motion.button>
+              <motion.button onClick={() => setIsGrid(true)} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className={`p-2 rounded-xl ${isGrid ? (isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-800 shadow-sm') : (isDark ? 'text-gray-400 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100')}`}><Ic.Grid /></motion.button>
+              <motion.button onClick={() => setIsGrid(false)} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className={`p-2 rounded-xl ${!isGrid ? (isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-800 shadow-sm') : (isDark ? 'text-gray-400 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100')}`}><Ic.List /></motion.button>
             </div>
           </div>
           
           {filt.length > 0 ? (
-            <motion.div variants={containerVariants} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+            <motion.div variants={containerVariants} className={isGrid ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6" : "flex flex-col gap-3"}>
               <AnimatePresence>
                 {filt.map((f, i) => (
                   <motion.div 
@@ -199,10 +200,10 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
                     variants={itemVariants}
                     layout 
                     exit={{ opacity: 0, scale: 0.8, filter: "blur(5px)" }} 
-                    whileHover={{ y: -8, scale: 1.03, zIndex: 10 }}
+                    whileHover={isGrid ? { y: -8, scale: 1.03, zIndex: 10 } : { x: 4, zIndex: 10 }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
-                    <FileCard file={f} isDark={isDark} onPreview={() => openPreview(f)} isGrid={true} idx={i} onDelete={(id) => setFiles(files.filter(file => file.id !== id))} />
+                    <FileCard file={f} isDark={isDark} onPreview={() => openPreview(f)} isGrid={isGrid} idx={i} onDelete={(id) => setFiles(files.filter(file => file.id !== id))} />
                   </motion.div>
                 ))}
               </AnimatePresence>

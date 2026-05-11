@@ -18,3 +18,14 @@ export const formatTime = (s) => {
   const sec = Math.floor(s % 60); 
   return `${m}:${sec < 10 ? '0' : ''}${sec}`; 
 };
+export const getFileIcon = (filename, defaultType) => {
+  const ext = filename?.split(".").pop()?.toLowerCase();
+  if (ext === "pdf") return Ic.Pdf || Ic.Doc;
+  if (ext === "doc" || ext === "docx") return Ic.Word || Ic.Doc;
+  if (ext === "xls" || ext === "xlsx" || ext === "csv") return Ic.Excel || Ic.Doc;
+  if (ext === "ppt" || ext === "pptx") return Ic.Ppt || Ic.Doc;
+  if (ext === "mp3" || ext === "wav" || ext === "ogg" || ext === "m4a") return Ic.Music || Ic.Doc;
+  if (ext === "mp4" || ext === "avi" || ext === "mkv" || ext === "webm") return Ic.Video || Ic.Doc;
+  if (ext === "jpg" || ext === "jpeg" || ext === "png" || ext === "gif" || ext === "webp") return Ic.Image || Ic.Doc;
+  return tIcon(defaultType);
+};

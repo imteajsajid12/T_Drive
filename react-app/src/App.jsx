@@ -24,10 +24,37 @@ export default function App() {
   const [preview, setPreview] = useState(null);
 
   useEffect(() => {
+    // 1. Initial theme load
     if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
       setIsDark(true);
     }
+    
+    // 2. Load stored files from local storage
+    try {
+      const savedFiles = localStorage.getItem('tDriveFiles');
+      if (savedFiles) {
+        setFiles(JSON.parse(savedFiles));
+      } else {
+        setFiles(initialFiles);
+      }
+    } catch (e) {
+      console.warn("Storage quota or parse error on load", e);
+    }
   }, []);
+
+  // Save files to local storage whenever they change
+  useEffect(() => {
+    try {
+      if (files !== initialFiles) {
+        localStorage.setItem('tDriveFiles', JSON.stringify(files));
+      }
+    } catch (e) {
+      console.warn("Local storage quota exceeded! Couldn't save file contents.", e);
+      // Fallback: store files WITHOUT their bulky base64 dataUrl properties to respect localStorage limits
+      const lightFiles = files.map(({ url, ...rest }) => rest);
+      localStorage.setItem('tDriveFiles', JSON.stringify(lightFiles));
+    }
+  }, [files]);
 
   const handleUpload = (newFile) => {
     setFiles([newFile, ...files]);
