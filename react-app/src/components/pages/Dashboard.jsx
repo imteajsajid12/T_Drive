@@ -12,10 +12,65 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
   const [cm, setCm] = useState(null); // context menu file id
   const [isGrid, setIsGrid] = useState(true); // grid or list view state
 
+  const computeSize = (sizeStr) => {
+    if (!sizeStr) return 0;
+    const s = sizeStr.toString().toUpperCase();
+    const val = parseFloat(s);
+    if (isNaN(val)) return 0;
+    if (s.includes('GB')) return val * 1024;
+    if (s.includes('KB')) return val / 1024;
+    return val;
+  };
+  const totalMB = files.reduce((acc, f) => acc + computeSize(f.size), 0);
+  const usedSpaceStr = totalMB > 1024 ? (totalMB / 1024).toFixed(1) + ' GB' : totalMB.toFixed(1) + ' MB';
+  const sharedCount = files.filter(f => f.star).length;
+  
+  // Storage usage details
+  const maxStorageMB = 100 * 1024; // 100 GB
+  const storagePercent = Math.min((totalMB / maxStorageMB) * 100, 100).toFixed(0);
+  const strokeDashoffset = 251.2 - (251.2 * (storagePercent / 100));
+
+  const categorySizes = { image: 0, video: 0, doc: 0, music: 0, other: 0 };
+  files.forEach(f => {
+    const size = computeSize(f.size);
+    if (f.type in categorySizes) categorySizes[f.type] += size;
+    else categorySizes.other += size;
+  });
+
+  const getStorageDetails = (type, label, color, gradient) => {
+    const size = categorySizes[type];
+    const sizeStr = size > 1024 ? (size / 1024).toFixed(1) + ' GB' : size.toFixed(1) + ' MB';
+    const percent = totalMB > 0 ? ((size / totalMB) * 100).toFixed(0) : 0;
+    return { l: label, v: sizeStr, p: percent, c: color, g: gradient };
+  };
+
+  const storageBreakdown = [
+    getStorageDetails('image', 'Images', 'bg-emerald-500', 'from-emerald-400 to-emerald-500'),
+    getStorageDetails('video', 'Videos', 'bg-teal-500', 'from-teal-400 to-teal-500'),
+    getStorageDetails('doc', 'Docs', 'bg-cyan-500', 'from-cyan-400 to-cyan-500')
+  ];
+
+  // Dynamic Chart Data mapping file sizes added each day
+  const generateChartData = () => {
+    const data = [
+      { name: 'Mon', uv: 0 }, { name: 'Tue', uv: 0 }, { name: 'Wed', uv: 0 },
+      { name: 'Thu', uv: 0 }, { name: 'Fri', uv: 0 }, { name: 'Sat', uv: 0 }, { name: 'Sun', uv: 0 }
+    ];
+    files.forEach(f => {
+       const d = new Date(f.date);
+       if (!isNaN(d.getTime())) {
+          let dayIdx = d.getDay() === 0 ? 6 : d.getDay() - 1;
+          data[dayIdx].uv += computeSize(f.size);
+       }
+    });
+    return data.map(d => ({ ...d, uv: Math.max(10, Math.round(d.uv)) }));
+  };
+  const dynamicChartData = generateChartData();
+
   const stats = [
-    { title: 'Total Files', val: files.length, sub: '+12% this week', color: 'emerald', ic: Ic.FileText },
-    { title: 'Used Space', val: '45.2 GB', sub: 'of 100 GB', color: 'blue', ic: Ic.HardDrive },
-    { title: 'Shared', val: '12', sub: 'active links', color: 'purple', ic: Ic.Share },
+    { title: 'Total Files', val: files.length, sub: 'In your drive', color: 'emerald', ic: Ic.FileText },
+    { title: 'Used Space', val: usedSpaceStr, sub: 'of 100 GB', color: 'blue', ic: Ic.HardDrive },
+    { title: 'Starred', val: sharedCount, sub: 'important files', color: 'purple', ic: Ic.Star },
   ];
 
   const filt = files.filter(f =>  
@@ -108,7 +163,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
                 <motion.div whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }} className="relative z-10">
                   <svg className="w-full h-full transform -rotate-90 drop-shadow-xl" viewBox="0 0 100 100">
                     <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="12" fill="none" className={isDark ? 'text-gray-700/50' : 'text-gray-100'} />
-                    <motion.circle cx="50" cy="50" r="40" stroke="url(#gradient)" strokeWidth="12" fill="none" strokeDasharray="251.2" initial={{ strokeDashoffset: 251.2 }} animate={{ strokeDashoffset: 138.16 }} transition={{ duration: 2, ease: "easeOut", delay: 0.2 }} strokeLinecap="round" className="drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+                    <motion.circle cx="50" cy="50" r="40" stroke="url(#gradient)" strokeWidth="12" fill="none" strokeDasharray="251.2" initial={{ strokeDashoffset: 251.2 }} animate={{ strokeDashoffset }} transition={{ duration: 2, ease: "easeOut", delay: 0.2 }} strokeLinecap="round" className="drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
                     <defs>
                       <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#10B981" />
@@ -117,18 +172,14 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
                     </defs>
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <motion.span initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.5 }} className={`text-4xl font-black bg-clip-text text-transparent bg-gradient-to-br ${isDark ? 'from-white to-gray-400' : 'from-gray-800 to-gray-500'}`}>45%</motion.span>
+                    <motion.span initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.5 }} className={`text-4xl font-black bg-clip-text text-transparent bg-gradient-to-br ${isDark ? 'from-white to-gray-400' : 'from-gray-800 to-gray-500'}`}>{storagePercent}%</motion.span>
                     <span className={`text-[10px] font-bold tracking-widest mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>USED</span>
                   </div>
                 </motion.div>
                 <div className="absolute inset-0 bg-emerald-500/20 blur-2xl rounded-full scale-75 group-hover:scale-95 transition-transform duration-500" />
               </div>
               <div className="mt-8 space-y-4">
-                {[
-                  { l: 'Images', v: '15 GB', p: 35, c: 'bg-emerald-500', g: 'from-emerald-400 to-emerald-500' },
-                  { l: 'Videos', v: '20 GB', p: 45, c: 'bg-teal-500', g: 'from-teal-400 to-teal-500' },
-                  { l: 'Docs', v: '10.2 GB', p: 20, c: 'bg-cyan-500', g: 'from-cyan-400 to-cyan-500' }
-                ].map((i, idx) => (
+                {storageBreakdown.map((i, idx) => (
                   <motion.div key={idx} whileHover={{ x: 4, scale: 1.02 }} className="group/item cursor-pointer p-2 -mx-2 rounded-xl transition-colors hover:bg-gray-500/5">
                     <div className="flex justify-between text-xs mb-2">
                       <span className={`font-semibold flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -152,7 +203,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
                 <span className={`text-xs font-semibold px-2 py-1 rounded-full ${isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>vs last week</span>
               </div>
               <ResponsiveContainer width="100%" height={260}>
-                <AreaChart data={chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                <AreaChart data={dynamicChartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10B981" stopOpacity={0.4}/>
@@ -179,19 +230,47 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
           </motion.div>
         )}
 
-        {/* Files Grid */}
-        <motion.div variants={itemVariants} className="z-10">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
-              {q ? 'Search Results' : cat === 'home' ? 'Recent Files' : `All ${cat === 'files' ? '' : cat} files`}
+      {/* Files Section */}
+      <motion.div variants={itemVariants} className="flex flex-col space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-2 border-b border-gray-200/20 dark:border-gray-700/50 pb-4">
+          <div>
+            <h2 className={`text-lg font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
+              <Ic.Folder /> {q ? 'Search Results' : cat === 'home' ? 'Recent Files' : `${cat.charAt(0).toUpperCase() + cat.slice(1)} Files`}
             </h2>
-            <div className="flex items-center gap-2">
-              <motion.button onClick={() => setIsGrid(true)} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className={`p-2 rounded-xl ${isGrid ? (isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-800 shadow-sm') : (isDark ? 'text-gray-400 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100')}`}><Ic.Grid /></motion.button>
-              <motion.button onClick={() => setIsGrid(false)} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className={`p-2 rounded-xl ${!isGrid ? (isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-800 shadow-sm') : (isDark ? 'text-gray-400 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100')}`}><Ic.List /></motion.button>
-            </div>
+            <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{filt.length} files found</p>
           </div>
-          
-          {filt.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                const tgToken = localStorage.getItem('tgBotToken');
+                if (!tgToken) {
+                  alert('Please configure your Telegram bot in the Settings first.');
+                  return;
+                }
+                const event = new Event('telegramSyncRequested');
+                window.dispatchEvent(event);
+              }}
+              className="flex justify-center items-center h-10 px-4 rounded-xl font-bold text-xs sm:text-sm bg-[#0088cc] text-white hover:bg-[#0077b5] transition-colors shadow-lg shadow-[#0088cc]/20 gap-2"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.665 3.717l-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701h-.002l.002.001-.314 4.692c.46 0 .663-.211.921-.46l2.211-2.15 4.599 3.397c.848.467 1.457.227 1.668-.785l3.019-14.228c.309-1.239-.473-1.8-1.282-1.434z"/></svg> Sync Telegram
+            </motion.button>
+            <div className={`flex p-1 rounded-xl shadow-sm ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
+              <button onClick={() => setIsGrid(true)} className={`p-2 rounded-lg transition-colors ${isGrid ? (isDark ? 'bg-gray-700 text-emerald-400 shadow-sm' : 'bg-gray-100 text-emerald-600 shadow-sm') : (isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700/50' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50')}`}>
+                <Ic.Grid />
+              </button>
+              <button onClick={() => setIsGrid(false)} className={`p-2 rounded-lg transition-colors ${!isGrid ? (isDark ? 'bg-gray-700 text-emerald-400 shadow-sm' : 'bg-gray-100 text-emerald-600 shadow-sm') : (isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700/50' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50')}`}>
+                <Ic.List />
+              </button>
+            </div>
+            <button className={`w-10 h-10 flex items-center justify-center rounded-xl shadow-sm transition-all hover:scale-105 ${isDark ? 'bg-gray-800 border border-gray-700 text-gray-400 hover:text-white hover:border-gray-600' : 'bg-white border border-gray-100 text-gray-500 hover:text-gray-800 hover:border-gray-300'}`}>
+              <Ic.Filter />
+            </button>
+          </div>
+        </div>
+        
+        {filt.length > 0 ? (
             <motion.div variants={containerVariants} className={isGrid ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6" : "flex flex-col gap-3"}>
               <AnimatePresence>
                 {filt.map((f, i) => (

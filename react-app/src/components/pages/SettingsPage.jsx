@@ -1,12 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
+import { account } from '../../lib/appwrite';
+import { toast } from 'sonner';
 
-export const SettingsPage = ({ isDark }) => {
+export const SettingsPage = ({ isDark, user, setUser }) => {
   const [tgName, setTgName] = useState('@imteaj_t_drive_bot');
   const [tgToken, setTgToken] = useState('8721702939:AAGtDcMWdQPZYxrWGuCBvZ27UTbs4eBzH_E');
   const [tgChatId, setTgChatId] = useState('790875483');
   const [isSaved, setIsSaved] = useState(false);
+
+  // Dynamic Profile Edit States
+  const [fullName, setFullName] = useState(user?.name || '');
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+
+  // Password Reset States
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
+  useEffect(() => {
+    if (user?.name) setFullName(user.name);
+  }, [user]);
 
   useEffect(() => {
     // Load Telegram config from local storage on mount
@@ -23,7 +38,39 @@ export const SettingsPage = ({ isDark }) => {
     localStorage.setItem('tgBotToken', tgToken);
     localStorage.setItem('tgChatId', tgChatId);
     setIsSaved(true);
+    toast.success('Telegram configuration saved locally!');
     setTimeout(() => setIsSaved(false), 2000);
+  };
+
+  const updateProfile = async () => {
+    if (!fullName) return toast.error('Name cannot be empty.');
+    setIsUpdatingProfile(true);
+    try {
+      const updatedUser = await account.updateName(fullName);
+      if (setUser) setUser(updatedUser);
+      toast.success('Profile updated successfully!');
+    } catch (err) {
+      toast.error(err.message || 'Failed to update profile.');
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
+
+  const updatePassword = async () => {
+    if (!oldPassword || !newPassword) return toast.error('Please enter both passwords.');
+    if (newPassword.length < 8) return toast.error('New password must be at least 8 characters.');
+    
+    setIsUpdatingPassword(true);
+    try {
+      await account.updatePassword(newPassword, oldPassword);
+      toast.success('Password updated successfully!');
+      setOldPassword('');
+      setNewPassword('');
+    } catch (err) {
+      toast.error(err.message || 'Failed to update password. Check old password.');
+    } finally {
+      setIsUpdatingPassword(false);
+    }
   };
 
   return (
@@ -41,21 +88,74 @@ export const SettingsPage = ({ isDark }) => {
             <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="absolute -bottom-3 -right-3 p-2 rounded-xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-400 transition-colors"><Ic.Image /></motion.button>
           </div>
           <div className="flex-1 w-full space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div>
-                <label className={`block text-xs font-bold mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>First Name</label>
-                <input type="text" defaultValue="Alex" className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all ${isDark ? 'bg-gray-700/50 border border-gray-600 text-white focus:border-emerald-500 focus:bg-gray-700' : 'bg-gray-50 border border-gray-200 text-gray-800 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10'}`} />
-              </div>
-              <div>
-                <label className={`block text-xs font-bold mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Last Name</label>
-                <input type="text" defaultValue="Morgan" className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all ${isDark ? 'bg-gray-700/50 border border-gray-600 text-white focus:border-emerald-500 focus:bg-gray-700' : 'bg-gray-50 border border-gray-200 text-gray-800 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10'}`} />
+                <label className={`block text-xs font-bold mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Full Name</label>
+                <input 
+                  type="text" 
+                  value={fullName} 
+                  onChange={(e) => setFullName(e.target.value)} 
+                  className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all ${isDark ? 'bg-gray-700/50 border border-gray-600 text-white focus:border-emerald-500 focus:bg-gray-700' : 'bg-gray-50 border border-gray-200 text-gray-800 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10'}`} 
+                />
               </div>
             </div>
             <div>
               <label className={`block text-xs font-bold mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Email</label>
-              <input type="email" defaultValue="alex@example.com" className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all ${isDark ? 'bg-gray-700/50 border border-gray-600 text-white focus:border-emerald-500 focus:bg-gray-700' : 'bg-gray-50 border border-gray-200 text-gray-800 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10'}`} />
+              <input 
+                type="email" 
+                value={user?.email || 'admin@example.com'} 
+                disabled 
+                className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all opacity-70 cursor-not-allowed ${isDark ? 'bg-gray-700/50 border border-gray-600 text-white focus:border-emerald-500 focus:bg-gray-700' : 'bg-gray-50 border border-gray-200 text-gray-800 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10'}`} 
+              />
+              <p className={`text-[10px] mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Email cannot be changed directly from here.</p>
             </div>
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-bold text-sm shadow-lg shadow-emerald-500/20">Save Changes</motion.button>
+            <motion.button 
+              onClick={updateProfile} 
+              disabled={isUpdatingProfile}
+              whileHover={{ scale: 1.02 }} 
+              whileTap={{ scale: 0.98 }} 
+              className={`px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-bold text-sm shadow-lg shadow-emerald-500/20 ${isUpdatingProfile ? 'opacity-70 cursor-wait' : ''}`}
+            >
+              {isUpdatingProfile ? 'Saving...' : 'Save Changes'}
+            </motion.button>
+          </div>
+        </div>
+      </div>
+
+      {/* Security Section (Password Update) */}
+      <div className={`rounded-3xl p-6 transition-all ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'} shadow-sm hover:shadow-md`}>
+        <h2 className={`font-bold mb-6 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-800'}`}><Ic.Lock /> Security</h2>
+        <div className="space-y-4">
+          <div>
+            <label className={`block text-xs font-bold mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Old Password</label>
+            <input 
+              type="password" 
+              placeholder="••••••••"
+              value={oldPassword}
+              onChange={(e) => setOldPassword(e.target.value)}
+              className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all ${isDark ? 'bg-gray-700/50 border border-gray-600 text-white focus:border-emerald-500' : 'bg-gray-50 border border-gray-200 text-gray-800 focus:border-emerald-500'}`} 
+            />
+          </div>
+          <div>
+            <label className={`block text-xs font-bold mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>New Password</label>
+            <input 
+              type="password" 
+              placeholder="•••••••• (Min. 8 chars)"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all ${isDark ? 'bg-gray-700/50 border border-gray-600 text-white focus:border-emerald-500' : 'bg-gray-50 border border-gray-200 text-gray-800 focus:border-emerald-500'}`} 
+            />
+          </div>
+          <div className="pt-2">
+            <motion.button 
+              onClick={updatePassword}
+              disabled={isUpdatingPassword}
+              whileHover={{ scale: 1.02 }} 
+              whileTap={{ scale: 0.98 }} 
+              className={`px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg transition-all bg-red-500 text-white hover:bg-red-600 shadow-red-500/20 ${isUpdatingPassword ? 'opacity-70 cursor-wait' : ''}`}
+            >
+              {isUpdatingPassword ? 'Updating...' : 'Update Password'}
+            </motion.button>
           </div>
         </div>
       </div>
