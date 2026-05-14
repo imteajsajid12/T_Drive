@@ -13,10 +13,10 @@ export const FileCard = ({ file, isGrid, isDark, onPreview, onDelete, idx }) => 
       </motion.div>
       {isGrid && (
         <div className="relative h-36 overflow-hidden">
-          {(file.thumb || (file.type === 'image' && file.url)) ? (
+          {(file.type === 'image' && (file.thumb || file.url)) ? (
             <img src={file.thumb || file.url} alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-          ) : (file.type === 'video' && file.url) ? (
-            <video src={file.url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 pointer-events-none" preload="metadata" />
+          ) : (file.type === 'video' && (file.url || file.thumb)) ? (
+            <video src={file.url || file.thumb} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 pointer-events-none" preload="metadata" />
           ) : (
             <div className={`relative h-full flex items-center justify-center ${file.type === 'doc' ? 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700' : ''} transition-all duration-500`}>
               {file.type !== 'doc' && (
@@ -31,10 +31,10 @@ export const FileCard = ({ file, isGrid, isDark, onPreview, onDelete, idx }) => 
       <div className={`relative z-10 p-5 ${!isGrid ? 'flex items-center gap-4' : ''}`}>
         {!isGrid && (
           <div className={`relative w-12 h-12 rounded-2xl ${file.type === 'doc' ? 'bg-gray-100 dark:bg-gray-800' : `bg-gradient-to-br ${tGrad(file.type)} text-white`} flex items-center justify-center flex-shrink-0 shadow-md overflow-hidden`}>
-            {(file.thumb || (file.type === 'image' && file.url)) ? (
+            {(file.type === 'image' && (file.thumb || file.url)) ? (
               <img src={file.thumb || file.url} alt="" className="w-full h-full object-cover" />
-            ) : (file.type === 'video' && file.url) ? (
-              <video src={file.url} className="w-full h-full object-cover pointer-events-none" preload="metadata" />
+            ) : (file.type === 'video' && (file.url || file.thumb)) ? (
+              <video src={file.url || file.thumb} className="w-full h-full object-cover pointer-events-none" preload="metadata" />
             ) : (
               <motion.div whileHover={{ scale: 1.2, rotate: 10 }} transition={{ type: "spring" }}><TI /></motion.div>
             )}

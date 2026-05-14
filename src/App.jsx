@@ -15,6 +15,7 @@ import { BackgroundBlobs } from './components/ui/Utils';
 import { client, account } from './lib/appwrite';
 import { Toaster, toast } from 'sonner';
 import { useRef } from 'react';
+import Swal from 'sweetalert2';
 
 export default function App() {
   const [auth, setAuth] = useState(false);
@@ -87,15 +88,35 @@ export default function App() {
   useEffect(() => {
     if (!auth) return;
 
-    const syncWithTelegram = async () => {
+    // Full sync function that fetches ALL messages from Telegram
+    const fullSyncWithTelegram = async (clearOffset = false) => {
       const tgToken = localStorage.getItem('tgBotToken');
-      if (!tgToken) return;
+      if (!tgToken) {
+        console.warn('No Telegram bot token found');
+        return;
+      }
 
       try {
-        let offset = localStorage.getItem('tgSyncOffset') || 0;
-        const res = await fetch(`https://api.telegram.org/bot${tgToken}/getUpdates?allowed_updates=["message"]&offset=${offset}`);
+        // If clearOffset is true, start from offset 0 to get all messages
+        let offset = clearOffset ? 0 : (localStorage.getItem('tgSyncOffset') || 0);
+        
+        // Fetch updates with a reasonable limit to avoid overwhelming the API
+        const limit = 100;
+        const res = await fetch(`https://api.telegram.org/bot${tgToken}/getUpdates?allowed_updates=["message"]&offset=${offset}&limit=${limit}`);
         const data = await res.json();
-        if (!data.ok || !data.result || data.result.length === 0) return;
+        
+        if (!data.ok) {
+          console.error('Telegram API error:', data.description);
+          toast.error(`Telegram API error: ${data.description}`);
+          return;
+        }
+        
+        if (!data.result || data.result.length === 0) {
+          if (clearOffset) {
+            toast.info('No files found in Telegram chat');
+          }
+          return;
+        }
 
         let maxUpdateId = 0;
         const newFiles = [];
@@ -164,13 +185,16 @@ export default function App() {
                 thumb: type === 'image' || type === 'video' ? previewUrl : null,
                 url: previewUrl,
                 star: false,
-                source: 'telegram'
+                source: 'telegram',
+                tgChatId: msg.chat?.id,
+                tgMessageId: msg.message_id
               });
               existingIds.add(fileId);
             }
           }
         }
 
+        // Save the latest offset for incremental sync
         if (maxUpdateId > 0) {
           localStorage.setItem('tgSyncOffset', maxUpdateId + 1);
         }
@@ -185,11 +209,24 @@ export default function App() {
         } else if (data.result.length > 0) {
           // If we had updates but no new files (e.g. duplicates), we can silently ignore.
           // But it's good to know we processed them.
+          if (clearOffset) {
+            toast.info('All files already synced');
+          }
         }
       } catch (err) {
         console.error('Telegram sync error:', err);
-        // Silently fail on network issues to not annoy the user
+        toast.error('Failed to sync from Telegram. Check your connection.');
       }
+    };
+
+    // Incremental sync (default behavior)
+    const syncWithTelegram = async () => {
+      await fullSyncWithTelegram(false);
+    };
+
+    // Full sync (clears offset to get all messages)
+    const fullSync = async () => {
+      await fullSyncWithTelegram(true);
     };
 
     syncWithTelegram();
@@ -200,11 +237,18 @@ export default function App() {
     };
     window.addEventListener('telegramSyncRequested', manualSyncListener);
 
+    // Listen for full sync requests
+    const fullSyncListener = () => {
+      fullSync();
+    };
+    window.addEventListener('telegramFullSyncRequested', fullSyncListener);
+
     // Setup interval to sync every 30 seconds
     const intervalId = setInterval(syncWithTelegram, 30000);
     return () => {
       clearInterval(intervalId);
       window.removeEventListener('telegramSyncRequested', manualSyncListener);
+      window.removeEventListener('telegramFullSyncRequested', fullSyncListener);
     };
   }, [auth]); // Re-run when files loads initially or auth changes
 
@@ -213,7 +257,148 @@ export default function App() {
   };
 
   const handleDelete = (id) => {
-    setFiles(files.filter(f => f.id !== id));
+    const file = files.find(f => f.id === id);
+    if (!file) return;
+
+    // Check if file exists on Telegram
+    const hasTgMessageId = file.tgMessageId || (String(file.id).startsWith('tg_') ? String(file.id).split('_')[1] : null);
+    const hasTgChatId = file.tgChatId || (() => {
+      let storedChatId = localStorage.getItem('tgChatId');
+      if (storedChatId) {
+        const match = storedChatId.match(/-?\d+/);
+        return match ? match[0] : null;
+      }
+      return null;
+    })();
+    const tgToken = localStorage.getItem('tgBotToken');
+
+    // If file exists on Telegram, confirm deletion and delete from both places
+    if (hasTgMessageId && hasTgChatId && tgToken) {
+      // SweetAlert2 confirmation for Telegram files
+      Swal.fire({
+        title: `Delete "${file.name}"?`,
+        text: 'This will permanently remove the file from both Telegram and your dashboard.',
+        icon: 'warning',
+        iconColor: '#ef4444',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Yes, delete all!',
+        cancelButtonText: 'Cancel',
+        reverseButtons: true,
+        customClass: {
+          confirmButton: 'px-6 py-3 rounded-xl font-bold text-white transition-all hover:scale-105',
+          cancelButton: 'px-6 py-3 rounded-xl font-bold text-gray-300 transition-all hover:scale-105',
+          title: 'text-xl font-bold',
+          text: 'text-gray-300'
+        }
+      }).then(async (result) => {
+        if (result.isConfirmed) {
+          try {
+            // Delete from Telegram first
+            const tgRes = await fetch(`https://api.telegram.org/bot${tgToken}/deleteMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                chat_id: hasTgChatId, 
+                message_id: hasTgMessageId 
+              })
+            });
+            const tgData = await tgRes.json();
+            
+            if (!tgData.ok) {
+              console.error('Telegram deletion failed:', tgData.description);
+              Swal.fire({
+                title: 'Deletion Failed',
+                text: `Failed to delete from Telegram: ${tgData.description || 'Unknown error'}`,
+                icon: 'error',
+                iconColor: '#ef4444',
+                confirmButtonColor: '#ef4444',
+                confirmButtonText: 'OK',
+                customClass: {
+                  confirmButton: 'px-6 py-3 rounded-xl font-bold text-white',
+                  title: 'text-xl font-bold',
+                  text: 'text-gray-300'
+                }
+              });
+              return; // Don't delete from local if Telegram deletion failed
+            }
+
+            // Now delete from local state
+            setFiles(prev => prev.filter(f => f.id !== id));
+            
+            // Success message
+            Swal.fire({
+              title: 'Deleted!',
+              text: 'File deleted from Telegram and device.',
+              icon: 'success',
+              iconColor: '#10b981',
+              confirmButtonColor: '#10b981',
+              confirmButtonText: 'OK',
+              customClass: {
+                confirmButton: 'px-6 py-3 rounded-xl font-bold text-white',
+                title: 'text-xl font-bold',
+                text: 'text-gray-300'
+              }
+            });
+          } catch (err) {
+            console.error('Error deleting from Telegram:', err);
+            Swal.fire({
+              title: 'Error',
+              text: 'Failed to delete from Telegram. File may still exist there.',
+              icon: 'error',
+              iconColor: '#ef4444',
+              confirmButtonColor: '#ef4444',
+              confirmButtonText: 'OK',
+              customClass: {
+                confirmButton: 'px-6 py-3 rounded-xl font-bold text-white',
+                title: 'text-xl font-bold',
+                text: 'text-gray-300'
+              }
+            });
+          }
+        }
+      });
+    } else {
+      // Local file only - delete with SweetAlert2 confirmation
+      Swal.fire({
+        title: `Delete "${file.name}"?`,
+        text: 'This will permanently remove the file from your device.',
+        icon: 'warning',
+        iconColor: '#ef4444',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Yes, delete it!',
+        cancelButtonText: 'Cancel',
+        reverseButtons: true,
+        customClass: {
+          confirmButton: 'px-6 py-3 rounded-xl font-bold text-white transition-all hover:scale-105',
+          cancelButton: 'px-6 py-3 rounded-xl font-bold text-gray-300 transition-all hover:scale-105',
+          title: 'text-xl font-bold',
+          text: 'text-gray-300'
+        }
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setFiles(prev => prev.filter(f => f.id !== id));
+          
+          // Success message
+          Swal.fire({
+            title: 'Deleted!',
+            text: 'File deleted from device.',
+            icon: 'success',
+            iconColor: '#10b981',
+            confirmButtonColor: '#10b981',
+            confirmButtonText: 'OK',
+            customClass: {
+              confirmButton: 'px-6 py-3 rounded-xl font-bold text-white',
+              title: 'text-xl font-bold',
+              text: 'text-gray-300'
+            }
+          });
+        }
+      });
+    }
   };
 
   // ----------------------------------------------------

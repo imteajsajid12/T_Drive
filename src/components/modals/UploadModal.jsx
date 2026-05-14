@@ -60,8 +60,12 @@ export const UploadModal = ({ open, close, isDark, onUpload }) => {
           xhr.onload = async () => {
             if (xhr.status >= 200 && xhr.status < 300) {
               let tgUrl = null;
+              let tgMsgId = null;
+              let returnedChatId = null;
               try {
                 const res = JSON.parse(xhr.responseText);
+                tgMsgId = res.result.message_id;
+                returnedChatId = res.result.chat?.id;
                 const fileId = res.result.document?.file_id || res.result.photo?.[res.result.photo.length - 1]?.file_id || res.result.video?.file_id || res.result.audio?.file_id;
                 if (fileId) {
                   const pathRes = await fetch(`https://api.telegram.org/bot${tgToken}/getFile?file_id=${fileId}`);
@@ -73,7 +77,7 @@ export const UploadModal = ({ open, close, isDark, onUpload }) => {
               } catch(e) {
                 console.error("Error getting Telegram file URL:", e);
               }
-              completeUpload(f, id, tgUrl);
+              completeUpload(f, id, tgUrl, tgMsgId, returnedChatId);
             } else {
               let errorMsg = 'Unknown error';
               try {
@@ -110,7 +114,7 @@ export const UploadModal = ({ open, close, isDark, onUpload }) => {
     });
   };
 
-  const completeUpload = (f, id, externalUrl = null) => {
+  const completeUpload = (f, id, externalUrl = null, tgMsgId = null, returnedChatId = null) => {
     let tp = 'doc';
     if (f.type.startsWith('image')) tp = 'image';
     else if (f.type.startsWith('video')) tp = 'video';
@@ -120,12 +124,12 @@ export const UploadModal = ({ open, close, isDark, onUpload }) => {
     // ALWAYS use createObjectURL. Base64 (readAsDataURL) for PDFs is blocked by modern Chrome/Safari strict security policies in iframes.
     // Native blob: URLs are trusted and render flawlessly.
     const fileDataUrl = externalUrl || URL.createObjectURL(f);
-    finalize(fileDataUrl, tp, !!externalUrl);
+    finalize(fileDataUrl, tp, !!externalUrl, tgMsgId, returnedChatId);
 
-    function finalize(fileData, type, isExternal) {
+    function finalize(fileData, type, isExternal, tgMsgId, returnedChatId) {
       setTimeout(() => {
         onUpload({ 
-          id: Date.now(), 
+          id: tgMsgId ? `tg_${tgMsgId}` : Date.now(), 
           name: f.name, 
           type: type, 
           size: (f.size / 1048576).toFixed(1) + ' MB', 
@@ -133,7 +137,9 @@ export const UploadModal = ({ open, close, isDark, onUpload }) => {
           url: fileData, // Store locally
           preview: isExternal ? fileData : null,
           thumb: (type === 'image' || type === 'video') && isExternal ? fileData : null,
-          source: isExternal ? 'telegram' : 'local'
+          source: isExternal ? 'telegram' : 'local',
+          tgChatId: returnedChatId,
+          tgMessageId: tgMsgId
         });
         setProgress((prev) => { const n = { ...prev }; delete n[id]; return n; });
       }, 300);

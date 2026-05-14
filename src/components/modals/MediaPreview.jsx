@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
 import { tGrad, tIcon, fmt, formatTime, getFileIcon } from '../../utils';
+import Swal from 'sweetalert2';
 
 export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
   const audioRef = useRef(null);
@@ -282,7 +283,37 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
             <button className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all">
               <Ic.Download /> Download
             </button>
-            <button onClick={() => { onDelete(file.id); onClose(); }} className={`p-2 rounded-xl text-red-500 transition-colors ${isDark ? 'hover:bg-red-500/20' : 'hover:bg-red-50'}`}><Ic.Trash /></button>
+            <button 
+              onClick={() => {
+                // SweetAlert2 confirmation for delete
+                Swal.fire({
+                  title: `Delete "${file.name}"?`,
+                  text: 'This will permanently remove the file from your device.',
+                  icon: 'warning',
+                  iconColor: '#ef4444',
+                  showCancelButton: true,
+                  confirmButtonColor: '#ef4444',
+                  cancelButtonColor: '#6b7280',
+                  confirmButtonText: 'Yes, delete it!',
+                  cancelButtonText: 'Cancel',
+                  reverseButtons: true,
+                  customClass: {
+                    confirmButton: 'px-6 py-3 rounded-xl font-bold text-white transition-all hover:scale-105',
+                    cancelButton: 'px-6 py-3 rounded-xl font-bold text-gray-300 transition-all hover:scale-105',
+                    title: 'text-xl font-bold',
+                    text: 'text-gray-300'
+                  }
+                }).then((result) => {
+                  if (result.isConfirmed) {
+                    onDelete(file.id);
+                    onClose();
+                  }
+                });
+              }} 
+              className={`p-2 rounded-xl text-red-500 transition-colors ${isDark ? 'hover:bg-red-500/20' : 'hover:bg-red-50'}`}
+            >
+              <Ic.Trash />
+            </button>
           </div>
         </div>
       </motion.div>
