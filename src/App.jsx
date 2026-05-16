@@ -12,7 +12,7 @@ import { SettingsPage } from './components/pages/SettingsPage';
 import { Dashboard } from './components/pages/Dashboard';
 import { LoginPage } from './components/pages/LoginPage';
 import { BackgroundBlobs } from './components/ui/Utils';
-import { client, account } from './lib/appwrite';
+import { client, account, getTelegramConfig } from './lib/appwrite';
 import { Toaster, toast } from 'sonner';
 import { useRef } from 'react';
 import Swal from 'sweetalert2';
@@ -31,6 +31,43 @@ export default function App() {
   useEffect(() => {
     filesRef.current = files;
   }, [files]);
+
+  const loadTelegramCredentials = async () => {
+    let tgToken = localStorage.getItem('tgBotToken');
+    let tgChatId = localStorage.getItem('tgChatId');
+
+    try {
+      const userId = user?.$id || 'default';
+      const config = await getTelegramConfig(userId);
+      if (config) {
+        tgToken = config.token || tgToken;
+        tgChatId = config.chat_id || tgChatId;
+
+        if (tgToken) localStorage.setItem('tgBotToken', tgToken);
+        if (tgChatId) localStorage.setItem('tgChatId', tgChatId);
+      }
+    } catch (err) {
+      console.warn('Could not load Telegram config from Appwrite, using localStorage:', err);
+    }
+
+    return { tgToken, tgChatId };
+  };
+
+  const resolveTelegramFileUrl = async (tgToken, tgFileId) => {
+    if (!tgToken || !tgFileId) return null;
+
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${tgToken}/getFile?file_id=${tgFileId}`);
+      const data = await res.json();
+      if (data.ok && data.result?.file_path) {
+        return `https://api.telegram.org/file/bot${tgToken}/${data.result.file_path}`;
+      }
+    } catch (err) {
+      console.warn('Could not resolve Telegram file URL:', err);
+    }
+
+    return null;
+  };
 
   const [upOpen, setUpOpen] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -70,6 +107,53 @@ export default function App() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!auth) return;
+
+    const refreshTelegramMedia = async () => {
+      const { tgToken } = await loadTelegramCredentials();
+      if (!tgToken) return;
+
+      const telegramFiles = filesRef.current.filter((file) => file.source === 'telegram' && file.tgFileId);
+      if (!telegramFiles.length) return;
+
+      const refreshed = await Promise.all(
+        telegramFiles.map(async (file) => {
+          const freshUrl = await resolveTelegramFileUrl(tgToken, file.tgFileId);
+          if (!freshUrl || freshUrl === file.url) return file;
+
+          return {
+            ...file,
+            url: freshUrl,
+            preview: freshUrl,
+            thumb: file.type === 'image' || file.type === 'video' ? freshUrl : file.thumb,
+            telegramUrlCheckedAt: new Date().toISOString()
+          };
+        })
+      );
+
+      let didChange = false;
+      const refreshedById = new Map(refreshed.map((file) => [file.id, file]));
+
+      setFiles((prev) => {
+        const next = prev.map((file) => {
+          const updated = refreshedById.get(file.id);
+          if (!updated || updated === file) return file;
+          didChange = true;
+          return updated;
+        });
+
+        if (didChange) {
+          localStorage.setItem('tDriveFiles', JSON.stringify(next));
+        }
+
+        return didChange ? next : prev;
+      });
+    };
+
+    refreshTelegramMedia();
+  }, [auth]);
+
   // Save files to local storage whenever they change
   useEffect(() => {
     try {
@@ -90,7 +174,8 @@ export default function App() {
 
     // Full sync function that fetches ALL messages from Telegram
     const fullSyncWithTelegram = async (clearOffset = false) => {
-      const tgToken = localStorage.getItem('tgBotToken');
+      const { tgToken } = await loadTelegramCredentials();
+
       if (!tgToken) {
         console.warn('No Telegram bot token found');
         return;
@@ -186,6 +271,7 @@ export default function App() {
                 url: previewUrl,
                 star: false,
                 source: 'telegram',
+                tgFileId: tgFile.file_id,
                 tgChatId: msg.chat?.id,
                 tgMessageId: msg.message_id
               });
@@ -262,18 +348,9 @@ export default function App() {
 
     // Check if file exists on Telegram
     const hasTgMessageId = file.tgMessageId || (String(file.id).startsWith('tg_') ? String(file.id).split('_')[1] : null);
-    const hasTgChatId = file.tgChatId || (() => {
-      let storedChatId = localStorage.getItem('tgChatId');
-      if (storedChatId) {
-        const match = storedChatId.match(/-?\d+/);
-        return match ? match[0] : null;
-      }
-      return null;
-    })();
-    const tgToken = localStorage.getItem('tgBotToken');
 
     // If file exists on Telegram, confirm deletion and delete from both places
-    if (hasTgMessageId && hasTgChatId && tgToken) {
+    if (hasTgMessageId) {
       // SweetAlert2 confirmation for Telegram files
       Swal.fire({
         title: `Delete "${file.name}"?`,
@@ -295,12 +372,19 @@ export default function App() {
       }).then(async (result) => {
         if (result.isConfirmed) {
           try {
+            const { tgToken, tgChatId } = await loadTelegramCredentials();
+            const effectiveChatId = file.tgChatId || tgChatId;
+
+            if (!tgToken || !effectiveChatId) {
+              throw new Error('Telegram configuration is missing');
+            }
+
             // Delete from Telegram first
             const tgRes = await fetch(`https://api.telegram.org/bot${tgToken}/deleteMessage`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
-                chat_id: hasTgChatId, 
+                chat_id: effectiveChatId,
                 message_id: hasTgMessageId 
               })
             });

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
+import { getTelegramConfig } from '../../lib/appwrite';
 
 export const UploadModal = ({ open, close, isDark, onUpload }) => {
   const [drag, setDrag] = useState(false);
@@ -10,31 +11,32 @@ export const UploadModal = ({ open, close, isDark, onUpload }) => {
 
   const drop = (e) => { e.preventDefault(); setDrag(false); handleFiles(Array.from(e.dataTransfer.files)); };
   const pick = (e) => { handleFiles(Array.from(e.target.files)); };
+  const loadTelegramCredentials = async () => {
+    let tgToken = localStorage.getItem('tgBotToken');
+    let tgChatId = localStorage.getItem('tgChatId');
+
+    try {
+      const config = await getTelegramConfig('default');
+      if (config) {
+        tgToken = config.token || tgToken;
+        tgChatId = config.chat_id || tgChatId;
+
+        if (tgToken) localStorage.setItem('tgBotToken', tgToken);
+        if (tgChatId) localStorage.setItem('tgChatId', tgChatId);
+      }
+    } catch (err) {
+      console.warn('Could not load Telegram config from Appwrite, using localStorage:', err);
+    }
+
+    return { tgToken, tgChatId };
+  };
+
   const handleFiles = (fs) => {
     fs.forEach(async (f) => {
       const id = Date.now() + Math.random();
       setProgress((p) => ({ ...p, [id]: { name: f.name, prog: 0 } }));
-      
-      let storedToken = localStorage.getItem('tgBotToken');
-      if (storedToken === 'null' || storedToken === 'undefined') storedToken = null;
-      const tgToken = (storedToken ? storedToken.trim() : null) || '8721702939:AAGtDcMWdQPZYxrWGuCBvZ27UTbs4eBzH_E';
-      
-      let storedChatId = localStorage.getItem('tgChatId');
-      if (storedChatId) {
-        // Extract only digits and optional leading minus sign
-        const match = storedChatId.match(/-?\d+/);
-        storedChatId = match ? match[0] : null;
-      }
-      if (storedChatId === 'null' || storedChatId === 'undefined' || storedChatId === '') storedChatId = null;
-      let tgChatId = (storedChatId ? storedChatId.trim() : null) || '790875483';
 
-      if (tgToken && !tgChatId) {
-        const userInput = prompt("Telegram cloud upload is enabled but your Chat ID is missing!\nPlease enter your Telegram Chat ID (You can get it from @userinfobot):");
-        if (userInput) {
-          tgChatId = userInput.trim();
-          localStorage.setItem('tgChatId', tgChatId);
-        }
-      }
+      const { tgToken, tgChatId } = await loadTelegramCredentials();
 
       // Bot API limits free document upload to 50MB (equivalent to ~52428800 bytes)
       const isOversizedForTg = f.size > 50 * 1024 * 1024;
@@ -74,10 +76,12 @@ export const UploadModal = ({ open, close, isDark, onUpload }) => {
                     tgUrl = `https://api.telegram.org/file/bot${tgToken}/${pathData.result.file_path}`;
                   }
                 }
+                completeUpload(f, id, tgUrl, tgMsgId, returnedChatId, fileId);
+                return;
               } catch(e) {
                 console.error("Error getting Telegram file URL:", e);
               }
-              completeUpload(f, id, tgUrl, tgMsgId, returnedChatId);
+              completeUpload(f, id, tgUrl, tgMsgId, returnedChatId, null);
             } else {
               let errorMsg = 'Unknown error';
               try {
@@ -114,7 +118,7 @@ export const UploadModal = ({ open, close, isDark, onUpload }) => {
     });
   };
 
-  const completeUpload = (f, id, externalUrl = null, tgMsgId = null, returnedChatId = null) => {
+  const completeUpload = (f, id, externalUrl = null, tgMsgId = null, returnedChatId = null, tgFileId = null) => {
     let tp = 'doc';
     if (f.type.startsWith('image')) tp = 'image';
     else if (f.type.startsWith('video')) tp = 'video';
@@ -138,6 +142,7 @@ export const UploadModal = ({ open, close, isDark, onUpload }) => {
           preview: isExternal ? fileData : null,
           thumb: (type === 'image' || type === 'video') && isExternal ? fileData : null,
           source: isExternal ? 'telegram' : 'local',
+          tgFileId,
           tgChatId: returnedChatId,
           tgMessageId: tgMsgId
         });

@@ -23,6 +23,7 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
   const [videoTime, setVideoTime] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
   const [videoVolume, setVideoVolume] = useState(0.7);
+  const [mediaError, setMediaError] = useState(false);
 
   useEffect(() => {
     setIsPlaying(false);
@@ -33,6 +34,7 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
     setVideoPlaying(false);
     setVideoTime(0);
     setVideoDuration(0);
+    setMediaError(false);
   }, [file?.id]);
 
   useEffect(() => {
@@ -180,10 +182,10 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
           {/* VIDEO PLAYER */}
           {file.type === 'video' && (
             <div className="relative bg-black rounded-2xl overflow-hidden group">
-              <video ref={videoRef} src={file.url || file.preview} className="w-full aspect-video object-contain bg-black" onClick={toggleVideoPlay} onTimeUpdate={handleVideoTimeUpdate} onLoadedMetadata={handleVideoLoadedMetadata} onEnded={() => setVideoPlaying(false)} />
-              {!file.url && !file.preview && (
+              <video ref={videoRef} src={file.url || file.preview} className="w-full aspect-video object-contain bg-black" onClick={toggleVideoPlay} onTimeUpdate={handleVideoTimeUpdate} onLoadedMetadata={handleVideoLoadedMetadata} onEnded={() => setVideoPlaying(false)} onError={() => setMediaError(true)} />
+              {(!file.url && !file.preview) || mediaError && (
                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <span className="text-white/50 text-sm">No video source available</span>
+                  <span className="text-white/50 text-sm">Video source unavailable</span>
                  </div>
               )}
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -223,7 +225,16 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
                 onMouseUp={handleImageMouseUp}
                 onMouseLeave={handleImageMouseUp}
               >
-                <img src={file.url || file.preview || `https://source.unsplash.com/random/1200x800?${file.name.split('.')[0]}`} alt={file.name} className="max-w-full max-h-[60vh] object-contain rounded-lg" draggable={false} />
+                {mediaError ? (
+                  <div className="min-h-[320px] min-w-[320px] flex items-center justify-center rounded-lg bg-white/5 border border-white/10">
+                    <div className="text-center px-6 py-8">
+                      <div className="text-white/80 text-sm font-semibold">Image unavailable</div>
+                      <div className="text-white/40 text-xs mt-2">The Telegram URL no longer resolves, but the file record is still in your dashboard.</div>
+                    </div>
+                  </div>
+                ) : (
+                  <img src={file.url || file.preview || `https://source.unsplash.com/random/1200x800?${file.name.split('.')[0]}`} onError={() => setMediaError(true)} alt={file.name} className="max-w-full max-h-[60vh] object-contain rounded-lg" draggable={false} />
+                )}
               </motion.div>
             </div>
           )}

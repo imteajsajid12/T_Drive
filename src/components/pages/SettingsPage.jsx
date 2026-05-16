@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
-import { account } from '../../lib/appwrite';
+import { account, getTelegramConfig, saveTelegramConfig } from '../../lib/appwrite';
 import { toast } from 'sonner';
 
 export const SettingsPage = ({ isDark, user, setUser }) => {
   const [tgName, setTgName] = useState('@imteaj_t_drive_bot');
   const [tgToken, setTgToken] = useState('8721702939:AAGtDcMWdQPZYxrWGuCBvZ27UTbs4eBzH_E');
   const [tgChatId, setTgChatId] = useState('790875483');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaved, setIsSaved] = useState(false);
+  const [configSource, setConfigSource] = useState('local'); // 'appwrite' or 'local'
 
   // Dynamic Profile Edit States
   const [fullName, setFullName] = useState(user?.name || '');
@@ -24,22 +27,94 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
   }, [user]);
 
   useEffect(() => {
-    // Load Telegram config from local storage on mount
-    const savedName = localStorage.getItem('tgBotName');
-    const savedToken = localStorage.getItem('tgBotToken');
-    const savedChatId = localStorage.getItem('tgChatId');
-    if (savedName) setTgName(savedName);
-    if (savedToken) setTgToken(savedToken);
-    if (savedChatId) setTgChatId(savedChatId);
-  }, []);
+    // Load Telegram config from Appwrite first, then fallback to localStorage
+    const loadTelegramConfig = async () => {
+      setIsLoading(true);
+      try {
+        const userId = user?.$id || 'default'; // Use user ID or default
+        const appwriteConfig = await getTelegramConfig(userId);
+        
+        if (appwriteConfig) {
+          // Load from Appwrite
+          setTgName(appwriteConfig.name || '@imteaj_t_drive_bot');
+          setTgToken(appwriteConfig.token || '');
+          setTgChatId(appwriteConfig.chat_id || '');
+          setConfigSource('appwrite');
+          localStorage.setItem('tgBotName', appwriteConfig.name);
+          localStorage.setItem('tgBotToken', appwriteConfig.token);
+          localStorage.setItem('tgChatId', appwriteConfig.chat_id);
+        } else {
+          // Fallback to localStorage
+          const savedName = localStorage.getItem('tgBotName');
+          const savedToken = localStorage.getItem('tgBotToken');
+          const savedChatId = localStorage.getItem('tgChatId');
+          if (savedName) setTgName(savedName);
+          if (savedToken) setTgToken(savedToken);
+          if (savedChatId) setTgChatId(savedChatId);
+          setConfigSource('local');
+        }
+      } catch (err) {
+        console.error('Error loading Telegram config from Appwrite:', err);
+        // Fallback to localStorage on error
+        const savedName = localStorage.getItem('tgBotName');
+        const savedToken = localStorage.getItem('tgBotToken');
+        const savedChatId = localStorage.getItem('tgChatId');
+        if (savedName) setTgName(savedName);
+        if (savedToken) setTgToken(savedToken);
+        if (savedChatId) setTgChatId(savedChatId);
+        setConfigSource('local');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const saveTelegramConfig = () => {
-    localStorage.setItem('tgBotName', tgName);
-    localStorage.setItem('tgBotToken', tgToken);
-    localStorage.setItem('tgChatId', tgChatId);
-    setIsSaved(true);
-    toast.success('Telegram configuration saved locally!');
-    setTimeout(() => setIsSaved(false), 2000);
+    if (user) {
+      loadTelegramConfig();
+    }
+  }, [user]);
+
+  const saveTelegramConfigHandler = async () => {
+    if (!tgName || !tgToken || !tgChatId) {
+      toast.error('Please fill in all Telegram configuration fields.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const userId = user?.$id || 'default';
+      const config = {
+        name: tgName,
+        token: tgToken,
+        chatId: tgChatId
+      };
+
+      // Save to Appwrite
+      await saveTelegramConfig(userId, config);
+      
+      // Also save to localStorage as backup
+      localStorage.setItem('tgBotName', tgName);
+      localStorage.setItem('tgBotToken', tgToken);
+      localStorage.setItem('tgChatId', tgChatId);
+      
+      setConfigSource('appwrite');
+      setIsSaved(true);
+      toast.success('Telegram configuration saved to Appwrite!');
+      setTimeout(() => setIsSaved(false), 2000);
+    } catch (err) {
+      console.error('Error saving Telegram config:', err);
+      
+      // Fallback: save to localStorage
+      localStorage.setItem('tgBotName', tgName);
+      localStorage.setItem('tgBotToken', tgToken);
+      localStorage.setItem('tgChatId', tgChatId);
+      
+      setConfigSource('local');
+      setIsSaved(true);
+      toast.warning('Saved to local storage (Appwrite connection issue)');
+      setTimeout(() => setIsSaved(false), 2000);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const updateProfile = async () => {
@@ -169,11 +244,23 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
             </span>
             Telegram Bot Integration
           </h2>
-          <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${isDark ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}>LOCAL STORAGE</span>
+          <span className={`text-[10px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1 ${configSource === 'appwrite' ? (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600') : (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-600')}`}>
+            {isLoading ? (
+              <>
+                <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity }} className="w-3 h-3 border-2 border-current border-t-transparent rounded-full"></motion.div>
+                LOADING
+              </>
+            ) : (
+              <>
+                <Ic.Check className="w-3 h-3" />
+                {configSource === 'appwrite' ? 'APPWRITE DATABASE' : 'LOCAL STORAGE'}
+              </>
+            )}
+          </span>
         </div>
         
         <p className={`text-sm mb-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          Connect your custom Telegram bot (e.g., <code>t.me/imteaj_t_drive_bot</code>) to back up your dashboard files directly through Telegram's API infrastructure.
+          Connect your custom Telegram bot (e.g., <code className={`${isDark ? 'bg-gray-700 text-emerald-400' : 'bg-gray-100 text-emerald-600'} px-1.5 py-0.5 rounded`}>t.me/imteaj_t_drive_bot</code>) to back up your dashboard files directly through Telegram's API infrastructure.
         </p>
 
         <div className="space-y-4">
@@ -184,7 +271,8 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
               placeholder="@imteaj_t_drive_bot"
               value={tgName}
               onChange={(e) => setTgName(e.target.value)}
-              className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all ${isDark ? 'bg-gray-700/50 border border-gray-600 text-white focus:border-indigo-500' : 'bg-gray-50 border border-gray-200 text-gray-800 focus:border-indigo-500'}`} 
+              disabled={isLoading}
+              className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${isDark ? 'bg-gray-700/50 border border-gray-600 text-white focus:border-indigo-500' : 'bg-gray-50 border border-gray-200 text-gray-800 focus:border-indigo-500'}`} 
             />
           </div>
           <div>
@@ -194,7 +282,8 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
               placeholder="e.g. 8721702939:AAGtDcMWdQPZYxrWGuCBvZ27UTbs4eBzH_E"
               value={tgToken}
               onChange={(e) => setTgToken(e.target.value)}
-              className={`w-full px-4 py-2.5 rounded-xl text-sm font-mono tracking-wider outline-none transition-all ${isDark ? 'bg-gray-700/50 border border-gray-600 text-white focus:border-indigo-500' : 'bg-gray-50 border border-gray-200 text-gray-800 focus:border-indigo-500'}`} 
+              disabled={isLoading}
+              className={`w-full px-4 py-2.5 rounded-xl text-sm font-mono tracking-wider outline-none transition-all ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${isDark ? 'bg-gray-700/50 border border-gray-600 text-white focus:border-indigo-500' : 'bg-gray-50 border border-gray-200 text-gray-800 focus:border-indigo-500'}`} 
             />
           </div>
           <div>
@@ -204,18 +293,34 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
               placeholder="e.g. 123456789"
               value={tgChatId}
               onChange={(e) => setTgChatId(e.target.value)}
-              className={`w-full px-4 py-2.5 rounded-xl text-sm font-mono tracking-wider outline-none transition-all ${isDark ? 'bg-gray-700/50 border border-gray-600 text-white focus:border-indigo-500' : 'bg-gray-50 border border-gray-200 text-gray-800 focus:border-indigo-500'}`} 
+              disabled={isLoading}
+              className={`w-full px-4 py-2.5 rounded-xl text-sm font-mono tracking-wider outline-none transition-all ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${isDark ? 'bg-gray-700/50 border border-gray-600 text-white focus:border-indigo-500' : 'bg-gray-50 border border-gray-200 text-gray-800 focus:border-indigo-500'}`} 
             />
           </div>
           <div className="pt-2">
             <motion.button 
-              onClick={saveTelegramConfig}
-              whileHover={{ scale: 1.02 }} 
-              whileTap={{ scale: 0.98 }} 
-              className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg transition-all ${isSaved ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-[#0088cc] text-white shadow-[#0088cc]/20'}`}
+              onClick={saveTelegramConfigHandler}
+              disabled={isSaving || isLoading}
+              whileHover={!isSaving && !isLoading ? { scale: 1.02 } : {}} 
+              whileTap={!isSaving && !isLoading ? { scale: 0.98 } : {}} 
+              className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg transition-all ${isSaving || isLoading ? 'opacity-70 cursor-wait' : ''} ${isSaved ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-[#0088cc] text-white shadow-[#0088cc]/20'}`}
             >
-              {isSaved ? <><Ic.Check /> Connected & Saved!</> : 'Connect Bot & Save Locally'}
+              {isSaving ? (
+                <>
+                  <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity }} className="w-4 h-4 border-2 border-white border-t-transparent rounded-full"></motion.div>
+                  Saving to Appwrite...
+                </>
+              ) : isSaved ? (
+                <><Ic.Check /> Connected & Saved!</>
+              ) : (
+                'Connect Bot & Save'
+              )}
             </motion.button>
+            {configSource === 'local' && !isSaving && (
+              <p className={`text-[10px] mt-2 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                ⚠ Currently using local storage. Click the button above to migrate to Appwrite database.
+              </p>
+            )}
           </div>
         </div>
       </div>
