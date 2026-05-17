@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
-import { getTelegramConfig } from '../../lib/appwrite';
+import { getTelegramConfig, saveTelegramFileMeta } from '../../lib/appwrite';
 
 export const UploadModal = ({ open, close, isDark, onUpload }) => {
   const [drag, setDrag] = useState(false);
@@ -118,6 +118,11 @@ export const UploadModal = ({ open, close, isDark, onUpload }) => {
     });
   };
 
+  const getFileExtension = (name = '') => {
+    const parts = name.split('.');
+    return parts.length > 1 ? parts.pop().toLowerCase() : '';
+  };
+
   const completeUpload = (f, id, externalUrl = null, tgMsgId = null, returnedChatId = null, tgFileId = null) => {
     let tp = 'doc';
     if (f.type.startsWith('image')) tp = 'image';
@@ -128,10 +133,20 @@ export const UploadModal = ({ open, close, isDark, onUpload }) => {
     // ALWAYS use createObjectURL. Base64 (readAsDataURL) for PDFs is blocked by modern Chrome/Safari strict security policies in iframes.
     // Native blob: URLs are trusted and render flawlessly.
     const fileDataUrl = externalUrl || URL.createObjectURL(f);
-    finalize(fileDataUrl, tp, !!externalUrl, tgMsgId, returnedChatId);
+    const isTelegramUpload = Boolean(tgFileId);
+    finalize(fileDataUrl, tp, isTelegramUpload, tgMsgId, returnedChatId, tgFileId);
 
-    function finalize(fileData, type, isExternal, tgMsgId, returnedChatId) {
+    function finalize(fileData, type, isTelegramUpload, tgMsgId, returnedChatId, fileId) {
       setTimeout(() => {
+        if (isTelegramUpload && fileId) {
+          saveTelegramFileMeta({
+            messageId: tgMsgId,
+            fileId,
+            extension: getFileExtension(f.name) || type,
+            size: (f.size / 1048576).toFixed(1) + ' MB'
+          });
+        }
+
         onUpload({ 
           id: tgMsgId ? `tg_${tgMsgId}` : Date.now(), 
           name: f.name, 
@@ -139,9 +154,9 @@ export const UploadModal = ({ open, close, isDark, onUpload }) => {
           size: (f.size / 1048576).toFixed(1) + ' MB', 
           date: new Date().toISOString().split('T')[0],
           url: fileData, // Store locally
-          preview: isExternal ? fileData : null,
-          thumb: (type === 'image' || type === 'video') && isExternal ? fileData : null,
-          source: isExternal ? 'telegram' : 'local',
+          preview: isTelegramUpload ? fileData : null,
+          thumb: (type === 'image' || type === 'video') && isTelegramUpload ? fileData : null,
+          source: isTelegramUpload ? 'telegram' : 'local',
           tgFileId,
           tgChatId: returnedChatId,
           tgMessageId: tgMsgId

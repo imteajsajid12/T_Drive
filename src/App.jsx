@@ -12,7 +12,7 @@ import { SettingsPage } from './components/pages/SettingsPage';
 import { Dashboard } from './components/pages/Dashboard';
 import { LoginPage } from './components/pages/LoginPage';
 import { BackgroundBlobs } from './components/ui/Utils';
-import { client, account, getTelegramConfig } from './lib/appwrite';
+import { client, account, getTelegramConfig, getTelegramFileMetaList, saveTelegramFileMeta } from './lib/appwrite';
 import { Toaster, toast } from 'sonner';
 import { useRef } from 'react';
 import Swal from 'sweetalert2';
@@ -67,6 +67,70 @@ export default function App() {
     }
 
     return null;
+  };
+
+  const normalizeSizeText = (rawSize) => {
+    if (rawSize === null || rawSize === undefined || rawSize === '') return '0 MB';
+    if (typeof rawSize === 'number') {
+      return rawSize > 1024 * 1024
+        ? `${(rawSize / (1024 * 1024)).toFixed(1)} MB`
+        : `${(rawSize / 1024).toFixed(1)} KB`;
+    }
+
+    const sizeText = String(rawSize).trim();
+    if (!sizeText) return '0 MB';
+
+    const upper = sizeText.toUpperCase();
+    const val = parseFloat(upper);
+    if (Number.isNaN(val)) return '0 MB';
+
+    if (upper.includes('GB')) return `${val.toFixed(1)} GB`;
+    if (upper.includes('MB')) return `${val.toFixed(1)} MB`;
+    if (upper.includes('KB')) return `${val.toFixed(1)} KB`;
+    if (upper.includes('B')) return `${(val / 1024).toFixed(1)} KB`;
+
+    // Raw numeric strings are treated as bytes from external sources.
+    return val > 1024 * 1024
+      ? `${(val / (1024 * 1024)).toFixed(1)} MB`
+      : `${(val / 1024).toFixed(1)} KB`;
+  };
+
+  const getExtensionFromName = (name = '') => {
+    const parts = name.split('.');
+    return parts.length > 1 ? parts.pop().toLowerCase() : '';
+  };
+
+  const inferTypeFromExtension = (extension = '') => {
+    const ext = extension.toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'image';
+    if (['mp4', 'mov', 'webm', 'mkv', 'avi'].includes(ext)) return 'video';
+    if (['mp3', 'wav', 'm4a', 'ogg', 'flac'].includes(ext)) return 'music';
+    return 'doc';
+  };
+
+  const buildTelegramFileEntry = async (doc, tgToken) => {
+    const fileId = doc.file_id;
+    const extension = (doc.Extension || '').toLowerCase();
+    const type = inferTypeFromExtension(extension);
+    const previewUrl = await resolveTelegramFileUrl(tgToken, fileId);
+    const size = normalizeSizeText(doc.size);
+    const safeId = doc.$id || fileId;
+
+    return {
+      id: safeId,
+      name: `telegram_${fileId}${extension ? `.${extension}` : ''}`,
+      type,
+      size,
+      date: doc.$createdAt ? new Date(doc.$createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      preview: previewUrl || '',
+      thumb: (type === 'image' || type === 'video') ? (previewUrl || '') : null,
+      url: previewUrl || '',
+      star: false,
+      source: 'telegram',
+      tgFileId: fileId,
+      tgMessageId: String(safeId).replace(/^tg_/, ''),
+      telegramDbId: doc.$id
+    };
   };
 
   const [upOpen, setUpOpen] = useState(false);
@@ -152,6 +216,46 @@ export default function App() {
     };
 
     refreshTelegramMedia();
+  }, [auth]);
+
+  useEffect(() => {
+    if (!auth) return;
+
+    const loadTelegramFilesFromDatabase = async () => {
+      const { tgToken } = await loadTelegramCredentials();
+      if (!tgToken) return;
+
+      const records = await getTelegramFileMetaList();
+      if (!records.length) return;
+
+      const entries = await Promise.all(records.map((doc) => buildTelegramFileEntry(doc, tgToken)));
+      const entriesById = new Map(entries.map((entry) => [entry.id, entry]));
+
+      setFiles((prev) => {
+        const merged = prev.map((file) => {
+          const dbEntry = entriesById.get(file.id);
+          if (!dbEntry) return file;
+
+          return {
+            ...file,
+            tgFileId: dbEntry.tgFileId || file.tgFileId,
+            size: file.size && file.size !== '0 MB' ? normalizeSizeText(file.size) : dbEntry.size,
+            url: file.url || dbEntry.url,
+            preview: file.preview || dbEntry.preview,
+            thumb: file.thumb || dbEntry.thumb,
+            source: 'telegram'
+          };
+        });
+
+        const existingIds = new Set(merged.map((file) => file.id));
+        const appendOnly = entries.filter((entry) => !existingIds.has(entry.id));
+        const finalList = [...appendOnly, ...merged];
+        localStorage.setItem('tDriveFiles', JSON.stringify(finalList));
+        return finalList;
+      });
+    };
+
+    loadTelegramFilesFromDatabase();
   }, [auth]);
 
   // Save files to local storage whenever they change
@@ -258,6 +362,7 @@ export default function App() {
                   ? (tgFile.file_size / (1024 * 1024)).toFixed(1) + ' MB' 
                   : (tgFile.file_size / 1024).toFixed(1) + ' KB';
               }
+              sizeStr = normalizeSizeText(sizeStr);
               const dateStr = new Date(msg.date * 1000).toISOString().split('T')[0];
 
               newFiles.push({
@@ -274,6 +379,12 @@ export default function App() {
                 tgFileId: tgFile.file_id,
                 tgChatId: msg.chat?.id,
                 tgMessageId: msg.message_id
+              });
+              saveTelegramFileMeta({
+                messageId: msg.message_id,
+                fileId: tgFile.file_id,
+                extension: getExtensionFromName(name) || type,
+                size: sizeStr
               });
               existingIds.add(fileId);
             }

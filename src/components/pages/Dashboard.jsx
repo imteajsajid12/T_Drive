@@ -18,8 +18,11 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
     const val = parseFloat(s);
     if (isNaN(val)) return 0;
     if (s.includes('GB')) return val * 1024;
+    if (s.includes('MB')) return val;
     if (s.includes('KB')) return val / 1024;
-    return val;
+    if (s.includes('B')) return val / (1024 * 1024);
+    // Raw numeric values are interpreted as bytes.
+    return val / (1024 * 1024);
   };
   const totalMB = files.reduce((acc, f) => acc + computeSize(f.size), 0);
   const usedSpaceStr = totalMB > 1024 ? (totalMB / 1024).toFixed(1) + ' GB' : totalMB.toFixed(1) + ' MB';
@@ -47,7 +50,9 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
   const storageBreakdown = [
     getStorageDetails('image', 'Images', 'bg-emerald-500', 'from-emerald-400 to-emerald-500'),
     getStorageDetails('video', 'Videos', 'bg-teal-500', 'from-teal-400 to-teal-500'),
-    getStorageDetails('doc', 'Docs', 'bg-cyan-500', 'from-cyan-400 to-cyan-500')
+    getStorageDetails('doc', 'Docs', 'bg-cyan-500', 'from-cyan-400 to-cyan-500'),
+    getStorageDetails('music', 'Music', 'bg-blue-500', 'from-blue-400 to-blue-500'),
+    getStorageDetails('other', 'Other', 'bg-slate-500', 'from-slate-400 to-slate-500')
   ];
 
   // Dynamic Chart Data mapping file sizes added each day
@@ -245,11 +250,6 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
-                  const tgToken = localStorage.getItem('tgBotToken');
-                  if (!tgToken) {
-                    alert('Please configure your Telegram bot in the Settings first.');
-                    return;
-                  }
                   const event = new Event('telegramSyncRequested');
                   window.dispatchEvent(event);
                 }}
@@ -261,11 +261,6 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
-                  const tgToken = localStorage.getItem('tgBotToken');
-                  if (!tgToken) {
-                    alert('Please configure your Telegram bot in the Settings first.');
-                    return;
-                  }
                   const event = new Event('telegramFullSyncRequested');
                   window.dispatchEvent(event);
                 }}
