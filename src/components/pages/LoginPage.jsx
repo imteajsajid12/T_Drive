@@ -3,8 +3,10 @@ import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
 import { account } from '../../lib/appwrite';
 
-export const LoginPage = ({ isDark, onLogin }) => {
+export const LoginPage = ({ isDark, onLogin, onBack }) => {
+  const [isSignUp, setIsSignUp] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('admin@tdrive.com');
   const [password, setPassword] = useState('password123');
   const [loading, setLoading] = useState(false);
@@ -23,17 +25,21 @@ export const LoginPage = ({ isDark, onLogin }) => {
     })));
   }, []);
 
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     try {
-      // Create session using Appwrite
+      if (isSignUp) {
+        // Create user using Appwrite
+        await account.create('unique()', email, password, name);
+      }
+      // Create session using Appwrite (login automatically after signup or execute regular login)
       await account.createEmailPasswordSession(email, password);
       onLogin(); // Tell App.jsx we are logged in
     } catch (err) {
       console.error(err);
-      setError(err.message || 'Login failed. Please check your credentials.');
+      setError(err.message || (isSignUp ? 'Sign up failed.' : 'Login failed. Please check your credentials.'));
     } finally {
       setLoading(false);
     }
@@ -48,6 +54,14 @@ export const LoginPage = ({ isDark, onLogin }) => {
 
   return (
     <div className={`relative min-h-screen flex items-center justify-center p-4 overflow-hidden transition-colors duration-500 ${isDark ? 'bg-gray-950' : 'bg-emerald-50'}`}>
+      {onBack && (
+        <button 
+          onClick={onBack}
+          className={`absolute top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 rounded-full font-bold opacity-80 hover:opacity-100 transition-all ${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}
+        >
+          <Ic.ArrowLeft /> Back
+        </button>
+      )}
       
       {/* Background Animated Video Wrapper */}
       <div className="absolute inset-0 w-full h-full z-0 overflow-hidden mix-blend-overlay pointer-events-none">
@@ -127,15 +141,37 @@ export const LoginPage = ({ isDark, onLogin }) => {
           >
             <span className="text-white text-3xl font-black">T</span>
           </motion.div>
-          <h1 className={`text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-gray-800'}`}>T-Drive Login</h1>
-          <p className={`text-sm mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Enter your credentials to access your files</p>
+          <h1 className={`text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-gray-800'}`}>
+            {isSignUp ? 'Join T-Drive' : 'T-Drive Login'}
+          </h1>
+          <p className={`text-sm mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            {isSignUp ? 'Create your account to start managing files' : 'Enter your credentials to access your files'}
+          </p>
         </div>
-        <form onSubmit={handleLogin} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-5">
           {error && (
             <div className="bg-red-500/10 border border-red-500/50 text-red-500 text-xs p-3 rounded-lg text-center">
               {error}
             </div>
           )}
+
+          {isSignUp && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ type: "spring", stiffness: 300 }}>
+              <label className={`block text-xs font-bold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Name</label>
+              <div className="relative group mb-5">
+                <span className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isDark ? 'text-gray-500 group-focus-within:text-emerald-400' : 'text-gray-400 group-focus-within:text-emerald-500'}`}><Ic.User /></span>
+                <input 
+                  type="text" 
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="John Doe" 
+                  className={`w-full pl-11 pr-4 py-3.5 rounded-xl text-sm font-semibold outline-none transition-all duration-300 ${isDark ? 'bg-gray-900/50 border border-gray-600 text-white focus:border-emerald-500 focus:bg-gray-900 focus:shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-gray-50/50 border border-gray-200 text-gray-800 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10'}`} 
+                  required={isSignUp}
+                />
+              </div>
+            </motion.div>
+          )}
+
           <motion.div whileHover={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 300 }}>
             <label className={`block text-xs font-bold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Email</label>
             <div className="relative group">
@@ -178,10 +214,20 @@ export const LoginPage = ({ isDark, onLogin }) => {
             whileTap={{ scale: 0.97 }}
             className={`w-full py-4 mt-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-bold text-sm shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/40 relative overflow-hidden group ${loading ? 'opacity-70 cursor-wait' : ''}`}
           >
-            <span className="relative z-10">{loading ? 'Signing In...' : 'Sign In'}</span>
+            <span className="relative z-10">{loading ? 'Processing...' : (isSignUp ? 'Sign Up' : 'Sign In')}</span>
             <div className="absolute inset-0 h-full w-full opacity-0 group-hover:opacity-20 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.5),transparent)] -translate-x-[150%] group-hover:translate-x-[150%] transition-all duration-700 ease-out"></div>
           </motion.button>
           
+          <div className="mt-4 text-center">
+            <button 
+              type="button" 
+              onClick={() => { setIsSignUp(!isSignUp); setError(''); }} 
+              className={`text-xs font-bold transition-colors ${isDark ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-600 hover:text-emerald-600'}`}
+            >
+              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+            </button>
+          </div>
+
           <div className="mt-6 flex items-center justify-center space-x-2">
             <span className={`h-px w-16 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></span>
             <span className={`text-xs font-semibold ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Or continue with</span>

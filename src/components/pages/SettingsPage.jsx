@@ -22,6 +22,9 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
   const [newPassword, setNewPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
+  const displayName = fullName.trim() || user?.name?.trim() || 'Your Name';
+  const displayInitial = displayName.slice(0, 1).toUpperCase();
+
   useEffect(() => {
     if (user?.name) setFullName(user.name);
   }, [user]);
@@ -122,7 +125,10 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
     setIsUpdatingProfile(true);
     try {
       const updatedUser = await account.updateName(fullName);
-      if (setUser) setUser(updatedUser);
+      if (setUser) {
+        setUser((prev) => ({ ...prev, ...updatedUser }));
+      }
+      setFullName(updatedUser?.name || fullName);
       toast.success('Profile updated successfully!');
     } catch (err) {
       toast.error(err.message || 'Failed to update profile.');
@@ -157,12 +163,16 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
         <h2 className={`font-bold mb-6 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-800'}`}><Ic.Users /> Profile</h2>
         <div className="flex flex-col md:flex-row gap-8 items-start">
           <div className="relative">
-            <div className="w-24 h-24 rounded-2xl overflow-hidden shadow-lg border-2 border-emerald-500/20">
-              <img src="https://placehold.co/96x96/10B981/fff?text=A" alt="Profile" className="w-full h-full object-cover" />
+            <div className="w-24 h-24 rounded-2xl overflow-hidden shadow-lg border-2 border-emerald-500/20 bg-linear-to-br from-emerald-500 to-teal-400 flex items-center justify-center">
+              <span className="text-3xl font-black text-white">{displayInitial}</span>
             </div>
             <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="absolute -bottom-3 -right-3 p-2 rounded-xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-400 transition-colors"><Ic.Image /></motion.button>
           </div>
           <div className="flex-1 w-full space-y-4">
+            <div>
+              <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-800'}`}>{displayName}</p>
+              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{user?.email}</p>
+            </div>
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className={`block text-xs font-bold mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Full Name</label>
@@ -189,7 +199,7 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
               disabled={isUpdatingProfile}
               whileHover={{ scale: 1.02 }} 
               whileTap={{ scale: 0.98 }} 
-              className={`px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-bold text-sm shadow-lg shadow-emerald-500/20 ${isUpdatingProfile ? 'opacity-70 cursor-wait' : ''}`}
+              className={`px-6 py-2.5 rounded-xl bg-linear-to-r from-emerald-500 to-teal-400 text-white font-bold text-sm shadow-lg shadow-emerald-500/20 ${isUpdatingProfile ? 'opacity-70 cursor-wait' : ''}`}
             >
               {isUpdatingProfile ? 'Saving...' : 'Save Changes'}
             </motion.button>
@@ -341,7 +351,7 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" className="sr-only peer" defaultChecked={i !== 2} />
-                <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${isDark ? 'peer-checked:bg-emerald-500' : 'peer-checked:bg-emerald-500'}`}></div>
+                <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${isDark ? 'peer-checked:bg-emerald-500' : 'peer-checked:bg-emerald-500'}`}></div>
               </label>
             </div>
           ))}

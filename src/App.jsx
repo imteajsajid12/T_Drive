@@ -11,14 +11,17 @@ import { AnalyticsPage } from './components/pages/AnalyticsPage';
 import { SettingsPage } from './components/pages/SettingsPage';
 import { Dashboard } from './components/pages/Dashboard';
 import { LoginPage } from './components/pages/LoginPage';
+import { LandingPage } from './components/pages/LandingPage';
 import { BackgroundBlobs } from './components/ui/Utils';
 import { client, account, getTelegramConfig, getTelegramFileMetaList, saveTelegramFileMeta } from './lib/appwrite';
+import { normalizeSizeText } from './utils';
 import { Toaster, toast } from 'sonner';
 import { useRef } from 'react';
 import Swal from 'sweetalert2';
 
 export default function App() {
   const [auth, setAuth] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   const [user, setUser] = useState(null);
   const [isDark, setIsDark] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -69,31 +72,7 @@ export default function App() {
     return null;
   };
 
-  const normalizeSizeText = (rawSize) => {
-    if (rawSize === null || rawSize === undefined || rawSize === '') return '0 MB';
-    if (typeof rawSize === 'number') {
-      return rawSize > 1024 * 1024
-        ? `${(rawSize / (1024 * 1024)).toFixed(1)} MB`
-        : `${(rawSize / 1024).toFixed(1)} KB`;
-    }
-
-    const sizeText = String(rawSize).trim();
-    if (!sizeText) return '0 MB';
-
-    const upper = sizeText.toUpperCase();
-    const val = parseFloat(upper);
-    if (Number.isNaN(val)) return '0 MB';
-
-    if (upper.includes('GB')) return `${val.toFixed(1)} GB`;
-    if (upper.includes('MB')) return `${val.toFixed(1)} MB`;
-    if (upper.includes('KB')) return `${val.toFixed(1)} KB`;
-    if (upper.includes('B')) return `${(val / 1024).toFixed(1)} KB`;
-
-    // Raw numeric strings are treated as bytes from external sources.
-    return val > 1024 * 1024
-      ? `${(val / (1024 * 1024)).toFixed(1)} MB`
-      : `${(val / 1024).toFixed(1)} KB`;
-  };
+  
 
   const getExtensionFromName = (name = '') => {
     const parts = name.split('.');
@@ -106,6 +85,19 @@ export default function App() {
     if (['mp4', 'mov', 'webm', 'mkv', 'avi'].includes(ext)) return 'video';
     if (['mp3', 'wav', 'm4a', 'ogg', 'flac'].includes(ext)) return 'music';
     return 'doc';
+  };
+
+  const getTelegramFileKey = (file) => file?.telegramKey || file?.tgFileId || file?.id;
+
+  const dedupeFilesByKey = (items = []) => {
+    const seen = new Set();
+
+    return items.filter((item) => {
+      const key = item.source === 'telegram' ? getTelegramFileKey(item) : item.id;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   };
 
   const buildTelegramFileEntry = async (doc, tgToken) => {
@@ -127,6 +119,7 @@ export default function App() {
       url: previewUrl || '',
       star: false,
       source: 'telegram',
+      telegramKey: fileId,
       tgFileId: fileId,
       tgMessageId: String(safeId).replace(/^tg_/, ''),
       telegramDbId: doc.$id
@@ -162,7 +155,7 @@ export default function App() {
     try {
       const savedFiles = localStorage.getItem('tDriveFiles');
       if (savedFiles) {
-        setFiles(JSON.parse(savedFiles));
+        setFiles(dedupeFilesByKey(JSON.parse(savedFiles)));
       } else {
         setFiles(initialFiles);
       }
@@ -225,19 +218,21 @@ export default function App() {
       const { tgToken } = await loadTelegramCredentials();
       if (!tgToken) return;
 
-      const records = await getTelegramFileMetaList();
+      const userId = user?.$id || 'default';
+      const records = await getTelegramFileMetaList(userId);
       if (!records.length) return;
 
       const entries = await Promise.all(records.map((doc) => buildTelegramFileEntry(doc, tgToken)));
-      const entriesById = new Map(entries.map((entry) => [entry.id, entry]));
+      const entriesByKey = new Map(entries.map((entry) => [getTelegramFileKey(entry), entry]));
 
       setFiles((prev) => {
         const merged = prev.map((file) => {
-          const dbEntry = entriesById.get(file.id);
+          const dbEntry = file.source === 'telegram' ? entriesByKey.get(getTelegramFileKey(file)) : null;
           if (!dbEntry) return file;
 
           return {
             ...file,
+            telegramKey: dbEntry.telegramKey || file.telegramKey,
             tgFileId: dbEntry.tgFileId || file.tgFileId,
             size: file.size && file.size !== '0 MB' ? normalizeSizeText(file.size) : dbEntry.size,
             url: file.url || dbEntry.url,
@@ -247,9 +242,9 @@ export default function App() {
           };
         });
 
-        const existingIds = new Set(merged.map((file) => file.id));
-        const appendOnly = entries.filter((entry) => !existingIds.has(entry.id));
-        const finalList = [...appendOnly, ...merged];
+        const existingIds = new Set(merged.map((file) => file.source === 'telegram' ? getTelegramFileKey(file) : file.id));
+        const appendOnly = entries.filter((entry) => !existingIds.has(getTelegramFileKey(entry)));
+        const finalList = dedupeFilesByKey([...appendOnly, ...merged]);
         localStorage.setItem('tDriveFiles', JSON.stringify(finalList));
         return finalList;
       });
@@ -310,7 +305,7 @@ export default function App() {
         let maxUpdateId = 0;
         const newFiles = [];
         // We use a set of existing IDs to prevent duplicates
-        const existingIds = new Set(filesRef.current.map(f => f.id));
+        const existingIds = new Set(filesRef.current.map((file) => file.source === 'telegram' ? getTelegramFileKey(file) : file.id));
 
         for (const update of data.result) {
           if (update.update_id > maxUpdateId) {
@@ -345,8 +340,9 @@ export default function App() {
 
           if (tgFile) {
             const fileId = `tg_${msg.message_id}`;
+            const telegramKey = tgFile.file_id;
             
-            if (!existingIds.has(fileId)) {
+            if (!existingIds.has(telegramKey)) {
               // Get actual file path URL from TG
               const pathRes = await fetch(`https://api.telegram.org/bot${tgToken}/getFile?file_id=${tgFile.file_id}`);
               const pathData = await pathRes.json();
@@ -376,6 +372,7 @@ export default function App() {
                 url: previewUrl,
                 star: false,
                 source: 'telegram',
+                telegramKey,
                 tgFileId: tgFile.file_id,
                 tgChatId: msg.chat?.id,
                 tgMessageId: msg.message_id
@@ -384,9 +381,10 @@ export default function App() {
                 messageId: msg.message_id,
                 fileId: tgFile.file_id,
                 extension: getExtensionFromName(name) || type,
-                size: sizeStr
+                size: sizeStr,
+                userId: user?.$id || 'default'
               });
-              existingIds.add(fileId);
+              existingIds.add(telegramKey);
             }
           }
         }
@@ -398,7 +396,7 @@ export default function App() {
 
         if (newFiles.length > 0) {
           setFiles(prev => {
-            const updated = [...newFiles, ...prev];
+            const updated = dedupeFilesByKey([...newFiles, ...prev]);
             localStorage.setItem('tDriveFiles', JSON.stringify(updated));
             return updated;
           });
@@ -599,15 +597,26 @@ export default function App() {
   // ----------------------------------------------------
   // RENDER APP Content
   // ----------------------------------------------------
-  if (!auth) return <LoginPage isDark={isDark} onLogin={async () => {
-    try {
-      const u = await account.get();
-      setUser(u);
-      setAuth(true);
-    } catch(e) {
-      console.error(e);
+  if (!auth) {
+    if (showLogin) {
+      return (
+        <LoginPage 
+          isDark={isDark} 
+          onLogin={async () => {
+            try {
+              const u = await account.get();
+              setUser(u);
+              setAuth(true);
+            } catch(e) {
+              console.error(e);
+            }
+          }} 
+          onBack={() => setShowLogin(false)}
+        />
+      );
     }
-  }} />;
+    return <LandingPage onLoginClick={() => setShowLogin(true)} />;
+  }
 
   const handleLogout = async () => {
     try {
@@ -650,6 +659,7 @@ export default function App() {
             q={q} 
             setQ={setQ} 
             user={{ name: user?.name || 'User', email: user?.email || 'user@example.com' }} 
+            setCat={setCat}
             onLogout={handleLogout} 
           />
 
@@ -666,6 +676,8 @@ export default function App() {
                 setFiles={setFiles} 
                 cat={cat} 
                 q={q} 
+                setQ={setQ}
+                user={user}
                 openPreview={(f) => setPreview(f)} 
               />
             )}
@@ -684,7 +696,8 @@ export default function App() {
         <UploadModal 
           open={upOpen} 
           close={() => setUpOpen(false)} 
-          isDark={isDark} 
+          isDark={isDark}
+          user={user} 
           onUpload={handleUpload} 
         />
         <MediaPreview 

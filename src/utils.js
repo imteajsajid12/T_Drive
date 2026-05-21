@@ -29,3 +29,29 @@ export const getFileIcon = (filename, defaultType) => {
   if (ext === "jpg" || ext === "jpeg" || ext === "png" || ext === "gif" || ext === "webp") return Ic.Image || Ic.Doc;
   return tIcon(defaultType);
 };
+
+export const normalizeSizeText = (rawSize) => {
+  if (rawSize === null || rawSize === undefined || rawSize === '') return '0 MB';
+  if (typeof rawSize === 'number') {
+    return rawSize > 1024 * 1024
+      ? `${(rawSize / (1024 * 1024)).toFixed(1)} MB`
+      : `${(rawSize / 1024).toFixed(1)} KB`;
+  }
+
+  const sizeText = String(rawSize).trim();
+  if (!sizeText) return '0 MB';
+
+  const upper = sizeText.toUpperCase();
+  const val = parseFloat(upper);
+  if (Number.isNaN(val)) return '0 MB';
+
+  if (upper.includes('GB')) return `${val.toFixed(1)} GB`;
+  if (upper.includes('MB')) return `${val.toFixed(1)} MB`;
+  if (upper.includes('KB')) return `${val.toFixed(1)} KB`;
+  if (upper.includes('B')) return `${(val / 1024).toFixed(1)} KB`;
+
+  // Raw numeric strings are treated as bytes from external sources.
+  return val > 1024 * 1024
+    ? `${(val / (1024 * 1024)).toFixed(1)} MB`
+    : `${(val / 1024).toFixed(1)} KB`;
+};

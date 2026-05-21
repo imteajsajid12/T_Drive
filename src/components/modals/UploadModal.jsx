@@ -2,8 +2,9 @@ import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
 import { getTelegramConfig, saveTelegramFileMeta } from '../../lib/appwrite';
+import { normalizeSizeText } from '../../utils';
 
-export const UploadModal = ({ open, close, isDark, onUpload }) => {
+export const UploadModal = ({ open, close, isDark, onUpload, user }) => {
   const [drag, setDrag] = useState(false);
   const [progress, setProgress] = useState({});
   const ref = useRef(null);
@@ -16,7 +17,8 @@ export const UploadModal = ({ open, close, isDark, onUpload }) => {
     let tgChatId = localStorage.getItem('tgChatId');
 
     try {
-      const config = await getTelegramConfig('default');
+      const userId = user?.$id || 'default';
+      const config = await getTelegramConfig(userId);
       if (config) {
         tgToken = config.token || tgToken;
         tgChatId = config.chat_id || tgChatId;
@@ -143,7 +145,8 @@ export const UploadModal = ({ open, close, isDark, onUpload }) => {
             messageId: tgMsgId,
             fileId,
             extension: getFileExtension(f.name) || type,
-            size: (f.size / 1048576).toFixed(1) + ' MB'
+            size: normalizeSizeText(f.size),
+            userId: user?.$id || 'default'
           });
         }
 
@@ -151,7 +154,7 @@ export const UploadModal = ({ open, close, isDark, onUpload }) => {
           id: tgMsgId ? `tg_${tgMsgId}` : Date.now(), 
           name: f.name, 
           type: type, 
-          size: (f.size / 1048576).toFixed(1) + ' MB', 
+          size: normalizeSizeText(f.size), 
           date: new Date().toISOString().split('T')[0],
           url: fileData, // Store locally
           preview: isTelegramUpload ? fileData : null,

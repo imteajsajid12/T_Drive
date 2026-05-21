@@ -8,9 +8,14 @@ import { ChartBox } from '../ui/ChartBox';
 import { QuickAction } from '../ui/QuickAction';
 import { FileCard } from '../ui/FileCard';
 
-export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
+export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, user }) => {
   const [cm, setCm] = useState(null); // context menu file id
   const [isGrid, setIsGrid] = useState(true); // grid or list view state
+  const [filterType, setFilterType] = useState('all');
+  const [showFilter, setShowFilter] = useState(false);
+  const [nameQuery, setNameQuery] = useState(q || '');
+  const [minSizeKB, setMinSizeKB] = useState('');
+  const displayName = user?.name?.trim() || user?.email?.split('@')[0] || 'there';
 
   const computeSize = (sizeStr) => {
     if (!sizeStr) return 0;
@@ -80,7 +85,13 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
 
   const filt = files.filter(f =>  
     (cat === 'home' || cat === 'files' || f.type === cat) &&
-    f.name.toLowerCase().includes(q.toLowerCase())
+    (filterType === 'all' || f.type === filterType) &&
+    f.name.toLowerCase().includes((q || '').toLowerCase()) &&
+    (minSizeKB === '' || (() => {
+      const sizeMB = computeSize(f.size); // computeSize returns MB
+      const minMB = parseFloat(minSizeKB) / 1024; // convert KB -> MB
+      return !isNaN(minMB) ? sizeMB >= minMB : true;
+    })())
   );
 
   const star = (id) => { setFiles(files.map(f => f.id === id ? { ...f, star: !f.star } : f)); setCm(null); };
@@ -103,7 +114,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      className="px-4 py-4 md:px-8 md:py-8 w-full space-y-8 max-w-[1920px] mx-auto overflow-hidden"
+      className="px-4 py-4 md:px-8 md:py-8 w-full space-y-8 max-w-480 mx-auto overflow-hidden"
     >
       {/* Header & Stats */}
       {cat === 'home' && (
@@ -115,7 +126,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
               transition={{ duration: 0.5, delay: 0.2 }}
               className={`text-3xl md:text-4xl font-black mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}
             >
-              Welcome back, Alex! 👋
+              Welcome back, {displayName}! 👋
             </motion.h1>
             <motion.p 
               initial={{ opacity: 0, x: -20 }}
@@ -164,7 +175,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
         {(cat === 'home' || cat === 'analytics') && (
           <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <ChartBox label="Storage Usage" isDark={isDark} className="lg:col-span-1">
-              <div className="relative w-full aspect-square max-w-[200px] mx-auto mt-4 group cursor-pointer">
+              <div className="relative w-full aspect-square max-w-50 mx-auto mt-4 group cursor-pointer">
                 <motion.div whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }} className="relative z-10">
                   <svg className="w-full h-full transform -rotate-90 drop-shadow-xl" viewBox="0 0 100 100">
                     <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="12" fill="none" className={isDark ? 'text-gray-700/50' : 'text-gray-100'} />
@@ -177,7 +188,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
                     </defs>
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <motion.span initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.5 }} className={`text-4xl font-black bg-clip-text text-transparent bg-gradient-to-br ${isDark ? 'from-white to-gray-400' : 'from-gray-800 to-gray-500'}`}>{storagePercent}%</motion.span>
+                    <motion.span initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.5 }} className={`text-4xl font-black bg-clip-text text-transparent bg-linear-to-br ${isDark ? 'from-white to-gray-400' : 'from-gray-800 to-gray-500'}`}>{storagePercent}%</motion.span>
                     <span className={`text-[10px] font-bold tracking-widest mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>USED</span>
                   </div>
                 </motion.div>
@@ -193,7 +204,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
                       <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>{i.v}</span>
                     </div>
                     <div className={`h-2 rounded-full overflow-hidden ${isDark ? 'bg-gray-700/50' : 'bg-gray-100'} shadow-inner`}>
-                      <motion.div initial={{ width: 0 }} animate={{ width: `${i.p}%` }} transition={{ duration: 1.5, delay: idx * 0.15, type: 'spring' }} className={`h-full bg-gradient-to-r ${i.g} rounded-full relative overflow-hidden group-hover/item:brightness-110`}>
+                      <motion.div initial={{ width: 0 }} animate={{ width: `${i.p}%` }} transition={{ duration: 1.5, delay: idx * 0.15, type: 'spring' }} className={`h-full bg-linear-to-r ${i.g} rounded-full relative overflow-hidden group-hover/item:brightness-110`}>
                         <motion.div className="absolute inset-0 bg-white/20" animate={{ x: ['-100%', '200%'] }} transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }} />
                       </motion.div>
                     </div>
@@ -246,7 +257,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
-              <motion.button
+              {/* <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
@@ -256,8 +267,8 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
                 className="flex justify-center items-center h-10 px-4 rounded-xl font-bold text-xs sm:text-sm bg-[#0088cc] text-white hover:bg-[#0077b5] transition-colors shadow-lg shadow-[#0088cc]/20 gap-2"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.665 3.717l-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701h-.002l.002.001-.314 4.692c.46 0 .663-.211.921-.46l2.211-2.15 4.599 3.397c.848.467 1.457.227 1.668-.785l3.019-14.228c.309-1.239-.473-1.8-1.282-1.434z"/></svg> Sync New
-              </motion.button>
-              <motion.button
+              </motion.button> */}
+              {/* <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
@@ -268,7 +279,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
                 title="Force full sync - fetches all files from Telegram"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Full Sync
-              </motion.button>
+              </motion.button> */}
             </div>
             <div className={`flex p-1 rounded-xl shadow-sm ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
               <button onClick={() => setIsGrid(true)} className={`p-2 rounded-lg transition-colors ${isGrid ? (isDark ? 'bg-gray-700 text-emerald-400 shadow-sm' : 'bg-gray-100 text-emerald-600 shadow-sm') : (isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700/50' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50')}`}>
@@ -278,9 +289,120 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, openPreview }) => {
                 <Ic.List />
               </button>
             </div>
-            <button className={`w-10 h-10 flex items-center justify-center rounded-xl shadow-sm transition-all hover:scale-105 ${isDark ? 'bg-gray-800 border border-gray-700 text-gray-400 hover:text-white hover:border-gray-600' : 'bg-white border border-gray-100 text-gray-500 hover:text-gray-800 hover:border-gray-300'}`}>
-              <Ic.Filter />
-            </button>
+            <div className="relative">
+              <button onClick={() => { setShowFilter(!showFilter); setNameQuery(q || ''); }} className={`w-10 h-10 flex items-center justify-center rounded-xl shadow-sm transition-all hover:scale-105 ${isDark ? 'bg-gray-800 border border-gray-700 text-gray-400 hover:text-white hover:border-gray-600' : 'bg-white border border-gray-100 text-gray-500 hover:text-gray-800 hover:border-gray-300'}`}>
+                <Ic.Filter />
+              </button>
+              {showFilter && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                  transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+                  className={`absolute right-0 top-full mt-2 w-[calc(100vw-1.5rem)] sm:w-80 max-w-[calc(100vw-1.5rem)] sm:max-w-[20rem] rounded-2xl shadow-2xl z-20 overflow-hidden ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}
+                >
+                  <div className={`px-5 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600'}`}>
+                        <Ic.Search />
+                      </div>
+                      <div>
+                        <h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-800'}`}>Advanced Search</h3>
+                        <p className={`text-[10px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Filter files by name, size, and type</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="max-h-[70vh] overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-4 sm:space-y-5 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+                    {/* Name Search */}
+                    <div className="space-y-2">
+                      <label className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        Name contains
+                      </label>
+                      <input 
+                        value={nameQuery} 
+                        onChange={(e) => setNameQuery(e.target.value)} 
+                        className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${isDark ? 'bg-gray-700/50 border-gray-600 text-white focus:border-emerald-500 focus:bg-gray-700' : 'bg-gray-50 border-gray-200 text-gray-800 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10'}`} 
+                        placeholder="e.g. report, image, .jpg" 
+                      />
+                    </div>
+                    
+                    {/* Min Size */}
+                    <div className="space-y-2">
+                      <label className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                        Minimum size (KB)
+                      </label>
+                      <div className="relative">
+                        <input 
+                          value={minSizeKB} 
+                          onChange={(e) => setMinSizeKB(e.target.value.replace(/[^0-9.]/g, ''))} 
+                          className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${isDark ? 'bg-gray-700/50 border-gray-600 text-white focus:border-blue-500 focus:bg-gray-700' : 'bg-gray-50 border-gray-200 text-gray-800 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10'}`} 
+                          placeholder="e.g. 100" 
+                        />
+                        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>KB</span>
+                      </div>
+                    </div>
+                    
+                    {/* Type Filter */}
+                    <div className="space-y-2">
+                      <label className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                        File type
+                      </label>
+                      <div className={`grid grid-cols-2 sm:grid-cols-5 gap-2 ${isDark ? 'bg-gray-700/30 p-2.5 sm:p-3 rounded-xl' : 'bg-gray-100 p-2.5 sm:p-3 rounded-xl'}`}>
+                        {['all','image','video','doc','music'].map((t) => (
+                          <button 
+                            key={t} 
+                            onClick={() => setFilterType(t)} 
+                            className={`relative flex flex-col items-center justify-center gap-1 py-2 rounded-lg text-[11px] transition-all min-h-13 ${filterType === t 
+                              ? (isDark ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/50' : 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200') 
+                              : (isDark ? 'text-gray-400 hover:bg-gray-700/50' : 'text-gray-500 hover:bg-gray-200')}`}
+                          >
+                            {t === 'all' && <Ic.Grid />}
+                            {t === 'image' && <Ic.Image />}
+                            {t === 'video' && <Ic.Video />}
+                            {t === 'doc' && <Ic.Doc />}
+                            {t === 'music' && <Ic.Music />}
+                            <span className="font-medium">{t === 'all' ? 'All' : t.charAt(0).toUpperCase() + t.slice(1)}</span>
+                            {filterType === t && (
+                              <span className={`absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full ${isDark ? 'bg-emerald-400' : 'bg-emerald-600'}`}></span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Footer Actions */}
+                  <div className={`px-4 sm:px-5 py-4 border-t ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-100 bg-gray-50/50'}`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <button 
+                        onClick={() => { 
+                          setFilterType('all'); 
+                          setMinSizeKB(''); 
+                          setNameQuery(''); 
+                          setQ && setQ(''); 
+                          setShowFilter(false); 
+                        }} 
+                        className={`w-full sm:w-auto text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-200'}`}
+                      >
+                        Reset
+                      </button>
+                      <button 
+                        onClick={() => { 
+                          setQ && setQ(nameQuery); 
+                          setShowFilter(false); 
+                        }} 
+                        className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-linear-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 hover:scale-105 transition-all"
+                      >
+                        Apply Filters
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </div>
           </div>
         </div>
         

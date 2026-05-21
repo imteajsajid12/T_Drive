@@ -2,10 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Ic } from '../../icons';
 
-export const Navbar = ({ isDark, toggle, onMenu, onUp, q, setQ, user, onLogout }) => {
+export const Navbar = ({ isDark, toggle, onMenu, onUp, q, setQ, user, onLogout, setCat }) => {
   const [sf, setSf] = useState(false);
   const [um, setUm] = useState(false);
   const ref = useRef(null);
+  const displayName = user?.name?.trim() || 'User';
+  const avatarInitial = displayName.slice(0, 1).toUpperCase();
   
   useEffect(() => { 
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setUm(false); }; 
@@ -23,20 +25,20 @@ export const Navbar = ({ isDark, toggle, onMenu, onUp, q, setQ, user, onLogout }
         </div>
         <div className="flex items-center gap-2">
           <button onClick={toggle} className={`p-2.5 rounded-xl ${isDark ? 'bg-gray-700/60 text-emerald-400' : 'bg-emerald-100/60 text-emerald-600'}`}>{isDark ? <Ic.Sun /> : <Ic.Moon />}</button>
-          <button onClick={onUp} className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-bold text-sm shadow-lg shadow-emerald-500/20"><Ic.Upload /> Upload</button>
+          <button onClick={onUp} className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-linear-to-r from-emerald-500 to-teal-400 text-white font-bold text-sm shadow-lg shadow-emerald-500/20"><Ic.Upload /> Upload</button>
           <div className="relative" ref={ref}>
-            <button onClick={() => setUm(!um)} className={`w-9 h-9 rounded-2xl overflow-hidden border-2 ${isDark ? 'border-emerald-500/30' : 'border-emerald-400/30'} shadow-md`}>
-              <img src="https://placehold.co/36x36/10B981/fff?text=A" alt="" className="w-full h-full object-cover" />
+            <button onClick={() => setUm(!um)} className={`w-9 h-9 rounded-2xl overflow-hidden border-2 ${isDark ? 'border-emerald-500/30' : 'border-emerald-400/30'} shadow-md bg-linear-to-br from-emerald-500 to-teal-400 flex items-center justify-center`}>
+              <span className="text-xs font-black text-white">{avatarInitial}</span>
             </button>
             <AnimatePresence>
               {um && (
                 <motion.div initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.95 }} className={`absolute right-0 top-12 w-48 rounded-2xl overflow-hidden shadow-2xl ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
                   <div className={`p-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
-                    <p className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-800'}`}>{user.name}</p>
+                    <p className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-800'}`}>{displayName}</p>
                     <p className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{user.email}</p>
                   </div>
                   <div className="p-2 space-y-0.5">
-                    <button className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs ${isDark ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-emerald-50 text-gray-600'}`}><Ic.Settings /> Settings</button>
+                    <button onClick={() => { setUm(false); setCat && setCat('settings'); }} className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs ${isDark ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-emerald-50 text-gray-600'}`}><Ic.Settings /> Settings</button>
                     <button onClick={onLogout} className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs text-red-500 hover:bg-red-50"><Ic.Shield /> Logout</button>
                   </div>
                 </motion.div>

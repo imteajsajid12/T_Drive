@@ -16,7 +16,7 @@ export const TELEGRAM_FILE_COLLECTION = "storage";
 export const getTelegramConfig = async (userId) => {
   try {
     const response = await databases.listDocuments(DB_ID, TELEGRAM_CONF_COLLECTION, [
-      // Query for documents with this user (if you store user_id)
+      Query.equal('user_id', userId)
     ]);
     
     if (response.documents && response.documents.length > 0) {
@@ -24,6 +24,17 @@ export const getTelegramConfig = async (userId) => {
     }
     return null;
   } catch (err) {
+    if (err.message?.includes('Attribute not found in schema: user_id')) {
+      console.warn('⚠️ Missing "user_id" attribute in telegram_conf collection. Please add it in Appwrite console.');
+      // Fallback query for now to prevent breaking while the user fixes the schema
+      try {
+        const fallback = await databases.listDocuments(DB_ID, TELEGRAM_CONF_COLLECTION, []);
+        return fallback.documents?.[0] || null;
+      } catch (fallbackErr) {
+        console.error('Error fetching Telegram config fallback:', fallbackErr);
+        return null;
+      }
+    }
     console.error('Error fetching Telegram config:', err);
     return null;
   }
@@ -40,14 +51,16 @@ export const saveTelegramConfig = async (userId, config) => {
       return await databases.updateDocument(DB_ID, TELEGRAM_CONF_COLLECTION, existing.$id, {
         name: config.name,
         token: config.token,
-        chat_id: config.chatId
+        chat_id: config.chatId,
+        user_id: userId
       });
     } else {
       // Create new document
       return await databases.createDocument(DB_ID, TELEGRAM_CONF_COLLECTION, 'unique()', {
         name: config.name,
         token: config.token,
-        chat_id: config.chatId
+        chat_id: config.chatId,
+        user_id: userId
       });
     }
   } catch (err) {
@@ -56,37 +69,63 @@ export const saveTelegramConfig = async (userId, config) => {
   }
 };
 
-export const saveTelegramFileMeta = async ({ messageId, fileId, extension, size }) => {
+export const saveTelegramFileMeta = async ({ messageId, fileId, extension, size, userId }) => {
   try {
     if (!fileId) return null;
 
-    const docId = messageId ? `tg_${messageId}` : `tg_${fileId}`;
-    const existing = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, [
-      Query.equal('file_id', fileId)
-    ]);
+    const docId = messageId ? `tg_${messageId}` : `tg_${userId}_${fileId}`;
+    let existing;
+    try {
+      existing = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, [
+        Query.equal('file_id', fileId),
+        Query.equal('user_id', userId)
+      ]);
+    } catch (queryErr) {
+      if (queryErr.message?.includes('Attribute not found')) {
+        console.warn('⚠️ Missing "user_id" attribute. Doing fallback check using just file_id.');
+        existing = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, [
+          Query.equal('file_id', fileId) // fallback
+        ]);
+      } else {
+        throw queryErr;
+      }
+    }
 
     const payload = {
       file_id: fileId,
       Extension: extension || '',
-      size: size || ''
+      size: size || '',
+      user_id: String(userId)
     };
 
     if (existing.documents?.length) {
       return await databases.updateDocument(DB_ID, TELEGRAM_FILE_COLLECTION, existing.documents[0].$id, payload);
     }
 
-    return await databases.createDocument(DB_ID, TELEGRAM_FILE_COLLECTION, docId, payload);
+    return await databases.createDocument(DB_ID, TELEGRAM_FILE_COLLECTION, 'unique()', payload);
   } catch (err) {
     console.error('Error saving Telegram file metadata:', err);
     return null;
   }
 };
 
-export const getTelegramFileMetaList = async () => {
+export const getTelegramFileMetaList = async (userId) => {
   try {
-    const response = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, []);
+    const response = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, [
+      Query.equal('user_id', userId)
+    ]);
     return response.documents || [];
   } catch (err) {
+    if (err.message?.includes('Attribute not found in schema: user_id')) {
+      console.warn('⚠️ Missing "user_id" attribute in storage collection. Please add it in Appwrite console.');
+      // Fallback query for now
+      try {
+        const fallback = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, []);
+        return fallback.documents || [];
+      } catch (fallbackErr) {
+        return [];
+      }
+    }
     console.error('Error loading Telegram file metadata:', err);
     return [];
   }
