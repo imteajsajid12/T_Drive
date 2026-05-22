@@ -24,6 +24,9 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
 
   const displayName = fullName.trim() || user?.name?.trim() || 'Your Name';
   const displayInitial = displayName.slice(0, 1).toUpperCase();
+  const getUserStorageKey = (suffix, userId = user?.$id || 'guest') => `tDrive:${userId}:${suffix}`;
+  const readUserStorage = (suffix, userId = user?.$id || 'guest') => localStorage.getItem(getUserStorageKey(suffix, userId));
+  const writeUserStorage = (suffix, value, userId = user?.$id || 'guest') => localStorage.setItem(getUserStorageKey(suffix, userId), value);
 
   useEffect(() => {
     if (user?.name) setFullName(user.name);
@@ -43,14 +46,14 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
           setTgToken(appwriteConfig.token || '');
           setTgChatId(appwriteConfig.chat_id || '');
           setConfigSource('appwrite');
-          localStorage.setItem('tgBotName', appwriteConfig.name);
-          localStorage.setItem('tgBotToken', appwriteConfig.token);
-          localStorage.setItem('tgChatId', appwriteConfig.chat_id);
+          writeUserStorage('tgBotName', appwriteConfig.name || '', userId);
+          writeUserStorage('tgBotToken', appwriteConfig.token || '', userId);
+          writeUserStorage('tgChatId', appwriteConfig.chat_id || '', userId);
         } else {
           // Fallback to localStorage
-          const savedName = localStorage.getItem('tgBotName');
-          const savedToken = localStorage.getItem('tgBotToken');
-          const savedChatId = localStorage.getItem('tgChatId');
+          const savedName = readUserStorage('tgBotName', userId);
+          const savedToken = readUserStorage('tgBotToken', userId);
+          const savedChatId = readUserStorage('tgChatId', userId);
           if (savedName) setTgName(savedName);
           if (savedToken) setTgToken(savedToken);
           if (savedChatId) setTgChatId(savedChatId);
@@ -59,9 +62,10 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
       } catch (err) {
         console.error('Error loading Telegram config from Appwrite:', err);
         // Fallback to localStorage on error
-        const savedName = localStorage.getItem('tgBotName');
-        const savedToken = localStorage.getItem('tgBotToken');
-        const savedChatId = localStorage.getItem('tgChatId');
+        const userId = user?.$id || 'guest';
+        const savedName = readUserStorage('tgBotName', userId);
+        const savedToken = readUserStorage('tgBotToken', userId);
+        const savedChatId = readUserStorage('tgChatId', userId);
         if (savedName) setTgName(savedName);
         if (savedToken) setTgToken(savedToken);
         if (savedChatId) setTgChatId(savedChatId);
@@ -95,9 +99,9 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
       await saveTelegramConfig(userId, config);
       
       // Also save to localStorage as backup
-      localStorage.setItem('tgBotName', tgName);
-      localStorage.setItem('tgBotToken', tgToken);
-      localStorage.setItem('tgChatId', tgChatId);
+      writeUserStorage('tgBotName', tgName, userId);
+      writeUserStorage('tgBotToken', tgToken, userId);
+      writeUserStorage('tgChatId', tgChatId, userId);
       
       setConfigSource('appwrite');
       setIsSaved(true);
@@ -107,9 +111,10 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
       console.error('Error saving Telegram config:', err);
       
       // Fallback: save to localStorage
-      localStorage.setItem('tgBotName', tgName);
-      localStorage.setItem('tgBotToken', tgToken);
-      localStorage.setItem('tgChatId', tgChatId);
+      const userId = user?.$id || 'guest';
+      writeUserStorage('tgBotName', tgName, userId);
+      writeUserStorage('tgBotToken', tgToken, userId);
+      writeUserStorage('tgChatId', tgChatId, userId);
       
       setConfigSource('local');
       setIsSaved(true);
@@ -278,7 +283,7 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
             <label className={`block text-xs font-bold mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Bot Name</label>
             <input 
               type="text" 
-              placeholder="@imteaj_t_drive_bot"
+              placeholder="t_drive_bot"
               value={tgName}
               onChange={(e) => setTgName(e.target.value)}
               disabled={isLoading}
@@ -289,7 +294,7 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
             <label className={`block text-xs font-bold mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>HTTP API Token</label>
             <input 
               type="password" 
-              placeholder="e.g. 8721702939:AAGtDcMWdQPZYxrWGuCBvZ27UTbs4eBzH_E"
+              placeholder="e.g. 2345678:"
               value={tgToken}
               onChange={(e) => setTgToken(e.target.value)}
               disabled={isLoading}

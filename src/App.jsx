@@ -31,23 +31,27 @@ export default function App() {
   const [files, setFiles] = useState(initialFiles);
   const filesRef = useRef(files);
 
+  const getUserStorageKey = (suffix, userId = user?.$id || 'guest') => `tDrive:${userId}:${suffix}`;
+  const readUserStorage = (suffix, userId = user?.$id || 'guest') => localStorage.getItem(getUserStorageKey(suffix, userId));
+  const writeUserStorage = (suffix, value, userId = user?.$id || 'guest') => localStorage.setItem(getUserStorageKey(suffix, userId), value);
+
   useEffect(() => {
     filesRef.current = files;
   }, [files]);
 
   const loadTelegramCredentials = async () => {
-    let tgToken = localStorage.getItem('tgBotToken');
-    let tgChatId = localStorage.getItem('tgChatId');
+    const userId = user?.$id || 'guest';
+    let tgToken = readUserStorage('tgBotToken', userId);
+    let tgChatId = readUserStorage('tgChatId', userId);
 
     try {
-      const userId = user?.$id || 'default';
       const config = await getTelegramConfig(userId);
       if (config) {
         tgToken = config.token || tgToken;
         tgChatId = config.chat_id || tgChatId;
 
-        if (tgToken) localStorage.setItem('tgBotToken', tgToken);
-        if (tgChatId) localStorage.setItem('tgChatId', tgChatId);
+        if (tgToken) writeUserStorage('tgBotToken', tgToken, userId);
+        if (tgChatId) writeUserStorage('tgChatId', tgChatId, userId);
       }
     } catch (err) {
       console.warn('Could not load Telegram config from Appwrite, using localStorage:', err);
@@ -152,17 +156,26 @@ export default function App() {
     }
     
     // 2. Load stored files from local storage
+  }, []);
+
+  useEffect(() => {
+    if (!auth || !user?.$id) {
+      setFiles(initialFiles);
+      return;
+    }
+
     try {
-      const savedFiles = localStorage.getItem('tDriveFiles');
+      const savedFiles = readUserStorage('tDriveFiles', user.$id);
       if (savedFiles) {
         setFiles(dedupeFilesByKey(JSON.parse(savedFiles)));
       } else {
         setFiles(initialFiles);
       }
     } catch (e) {
-      console.warn("Storage quota or parse error on load", e);
+      console.warn('Storage quota or parse error on load', e);
+      setFiles(initialFiles);
     }
-  }, []);
+  }, [auth, user?.$id]);
 
   useEffect(() => {
     if (!auth) return;
@@ -201,7 +214,9 @@ export default function App() {
         });
 
         if (didChange) {
-          localStorage.setItem('tDriveFiles', JSON.stringify(next));
+          if (user?.$id) {
+            writeUserStorage('tDriveFiles', JSON.stringify(next), user.$id);
+          }
         }
 
         return didChange ? next : prev;
@@ -245,7 +260,9 @@ export default function App() {
         const existingIds = new Set(merged.map((file) => file.source === 'telegram' ? getTelegramFileKey(file) : file.id));
         const appendOnly = entries.filter((entry) => !existingIds.has(getTelegramFileKey(entry)));
         const finalList = dedupeFilesByKey([...appendOnly, ...merged]);
-        localStorage.setItem('tDriveFiles', JSON.stringify(finalList));
+        if (user?.$id) {
+          writeUserStorage('tDriveFiles', JSON.stringify(finalList), user.$id);
+        }
         return finalList;
       });
     };
@@ -257,13 +274,17 @@ export default function App() {
   useEffect(() => {
     try {
       if (files !== initialFiles) {
-        localStorage.setItem('tDriveFiles', JSON.stringify(files));
+        if (user?.$id) {
+          writeUserStorage('tDriveFiles', JSON.stringify(files), user.$id);
+        }
       }
     } catch (e) {
       console.warn("Local storage quota exceeded! Couldn't save file contents.", e);
       // Fallback: store files WITHOUT their bulky base64 dataUrl properties to respect localStorage limits
       const lightFiles = files.map(({ url, ...rest }) => rest);
-      localStorage.setItem('tDriveFiles', JSON.stringify(lightFiles));
+      if (user?.$id) {
+        writeUserStorage('tDriveFiles', JSON.stringify(lightFiles), user.$id);
+      }
     }
   }, [files]);
 
@@ -282,7 +303,8 @@ export default function App() {
 
       try {
         // If clearOffset is true, start from offset 0 to get all messages
-        let offset = clearOffset ? 0 : (localStorage.getItem('tgSyncOffset') || 0);
+        const userId = user?.$id || 'guest';
+        let offset = clearOffset ? 0 : (readUserStorage('tgSyncOffset', userId) || 0);
         
         // Fetch updates with a reasonable limit to avoid overwhelming the API
         const limit = 100;
@@ -391,13 +413,15 @@ export default function App() {
 
         // Save the latest offset for incremental sync
         if (maxUpdateId > 0) {
-          localStorage.setItem('tgSyncOffset', maxUpdateId + 1);
+          writeUserStorage('tgSyncOffset', String(maxUpdateId + 1), user?.$id || 'guest');
         }
 
         if (newFiles.length > 0) {
           setFiles(prev => {
             const updated = dedupeFilesByKey([...newFiles, ...prev]);
-            localStorage.setItem('tDriveFiles', JSON.stringify(updated));
+            if (user?.$id) {
+              writeUserStorage('tDriveFiles', JSON.stringify(updated), user.$id);
+            }
             return updated;
           });
           toast.success(`Synced ${newFiles.length} new files from Telegram!`);

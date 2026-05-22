@@ -12,19 +12,22 @@ export const UploadModal = ({ open, close, isDark, onUpload, user }) => {
 
   const drop = (e) => { e.preventDefault(); setDrag(false); handleFiles(Array.from(e.dataTransfer.files)); };
   const pick = (e) => { handleFiles(Array.from(e.target.files)); };
+  const getUserStorageKey = (suffix, userId = user?.$id || 'guest') => `tDrive:${userId}:${suffix}`;
+  const readUserStorage = (suffix, userId = user?.$id || 'guest') => localStorage.getItem(getUserStorageKey(suffix, userId));
+  const writeUserStorage = (suffix, value, userId = user?.$id || 'guest') => localStorage.setItem(getUserStorageKey(suffix, userId), value);
   const loadTelegramCredentials = async () => {
-    let tgToken = localStorage.getItem('tgBotToken');
-    let tgChatId = localStorage.getItem('tgChatId');
+    const userId = user?.$id || 'guest';
+    let tgToken = readUserStorage('tgBotToken', userId);
+    let tgChatId = readUserStorage('tgChatId', userId);
 
     try {
-      const userId = user?.$id || 'default';
       const config = await getTelegramConfig(userId);
       if (config) {
         tgToken = config.token || tgToken;
         tgChatId = config.chat_id || tgChatId;
 
-        if (tgToken) localStorage.setItem('tgBotToken', tgToken);
-        if (tgChatId) localStorage.setItem('tgChatId', tgChatId);
+        if (tgToken) writeUserStorage('tgBotToken', tgToken, userId);
+        if (tgChatId) writeUserStorage('tgChatId', tgChatId, userId);
       }
     } catch (err) {
       console.warn('Could not load Telegram config from Appwrite, using localStorage:', err);
@@ -206,7 +209,7 @@ export const UploadModal = ({ open, close, isDark, onUpload, user }) => {
                     <span className={`text-[10px] font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>{Math.round(item.prog)}%</span>
                   </div>
                   <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-gray-600' : 'bg-emerald-100'}`}>
-                    <motion.div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400" initial={{ width: 0 }} animate={{ width: item.prog + '%' }} />
+                    <motion.div className="h-full rounded-full bg-linear-to-r from-emerald-500 to-teal-400" initial={{ width: 0 }} animate={{ width: item.prog + '%' }} />
                   </div>
                 </div>
               ))}
