@@ -4,6 +4,25 @@ import { Ic } from '../../icons';
 import { tGrad, tIcon, fmt, formatTime, getFileIcon } from '../../utils';
 import Swal from 'sweetalert2';
 
+const buildProxyUrl = (rawUrl, download = false) => {
+  if (!rawUrl) return '';
+  if (rawUrl.startsWith('blob:') || rawUrl.startsWith('data:') || rawUrl.startsWith('/api/proxy')) {
+    return rawUrl;
+  }
+
+  if (/^https?:\/\//i.test(rawUrl)) {
+    const params = new URLSearchParams({ url: rawUrl });
+
+    if (download) {
+      params.set('download', '1');
+    }
+
+    return `/api/proxy?${params.toString()}`;
+  }
+
+  return rawUrl;
+};
+
 export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -24,6 +43,22 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
   const [videoDuration, setVideoDuration] = useState(0);
   const [videoVolume, setVideoVolume] = useState(0.7);
   const [mediaError, setMediaError] = useState(false);
+  const [documentSrc, setDocumentSrc] = useState('');
+  const [mediaLoading, setMediaLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isOpen || !file || file.type !== 'doc') {
+      setDocumentSrc('');
+      return;
+    }
+
+    const rawSrc = file.url || file.preview || '';
+    setDocumentSrc(buildProxyUrl(rawSrc));
+  }, [file, isOpen]);
+
+  const documentRawSrc = file?.url || file?.preview || '';
+  const documentPreviewSrc = documentSrc || buildProxyUrl(documentRawSrc);
+  const documentDownloadSrc = buildProxyUrl(documentRawSrc, true);
 
   useEffect(() => {
     setIsPlaying(false);
@@ -35,6 +70,7 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
     setVideoTime(0);
     setVideoDuration(0);
     setMediaError(false);
+    setMediaLoading(true);
   }, [file?.id]);
 
   useEffect(() => {
@@ -142,7 +178,14 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}><Ic.Download /></button>
+            <a
+              href={documentDownloadSrc || '#'}
+              download={file.name}
+              aria-label="Download file"
+              className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'} ${!documentDownloadSrc ? 'pointer-events-none opacity-40' : ''}`}
+            >
+              <Ic.Download />
+            </a>
           </div>
         </div>
 
@@ -189,7 +232,12 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
           {/* VIDEO PLAYER */}
           {file.type === 'video' && (
             <div className="relative bg-black rounded-2xl overflow-hidden group">
-              <video ref={videoRef} src={file.url || file.preview} className="w-full aspect-video object-contain bg-black" onClick={toggleVideoPlay} onTimeUpdate={handleVideoTimeUpdate} onLoadedMetadata={handleVideoLoadedMetadata} onEnded={() => setVideoPlaying(false)} onError={() => setMediaError(true)} />
+                {mediaLoading && !mediaError && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-20 backdrop-blur-sm">
+                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full mb-3" />
+                  </div>
+                )}
+                <video ref={videoRef} src={file.url || file.preview} className="w-full aspect-video object-contain bg-black" onClick={toggleVideoPlay} onTimeUpdate={handleVideoTimeUpdate} onLoadedMetadata={handleVideoLoadedMetadata} onCanPlay={() => setMediaLoading(false)} onEnded={() => setVideoPlaying(false)} onError={() => { setMediaError(true); setMediaLoading(false); }} />
               {(!file.url && !file.preview) || mediaError && (
                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <span className="text-white/50 text-sm">Video source unavailable</span>
@@ -218,8 +266,11 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
 
           {/* IMAGE VIEWER */}
           {file.type === 'image' && (
-            <div className="relative bg-black/50 rounded-2xl overflow-hidden flex items-center justify-center" style={{ minHeight: 400 }}>
-              <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+            <div className="relative bg-black/50 rounded-2xl overflow-hidden flex items-center justify-center" style={{ minHeight: 400 }}>                {mediaLoading && !mediaError && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
+                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full" />
+                  </div>
+                )}              <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
                 <button onClick={handleZoomOut} className="p-2 rounded-xl bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"><Ic.ZoomOut /></button>
                 <span className="px-2 py-1 rounded-lg bg-black/50 text-white text-xs backdrop-blur-sm">{Math.round(zoom * 100)}%</span>
                 <button onClick={handleZoomIn} className="p-2 rounded-xl bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"><Ic.ZoomIn /></button>
@@ -240,7 +291,7 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
                     </div>
                   </div>
                 ) : (
-                  <img src={file.url || file.preview || `https://source.unsplash.com/random/1200x800?${file.name.split('.')[0]}`} onError={() => setMediaError(true)} alt={file.name} className="max-w-full max-h-[60vh] object-contain rounded-lg" draggable={false} />
+                  <img src={file.url || file.preview || `https://source.unsplash.com/random/1200x800?${file.name.split('.')[0]}`} onLoad={() => setMediaLoading(false)} onError={() => { setMediaError(true); setMediaLoading(false); }} alt={file.name} className={`max-w-full max-h-[60vh] object-contain rounded-lg transition-opacity duration-300 ${mediaLoading ? 'opacity-0' : 'opacity-100'}`} draggable={false} />
                 )}
               </motion.div>
             </div>
@@ -249,13 +300,26 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
           {/* DOCUMENT VIEWER */}
           {file.type === 'doc' && (
             <div className="relative bg-gray-100 rounded-2xl overflow-hidden w-full flex items-center justify-center" style={{ minHeight: '60vh' }}>
-              {(file.url || file.preview) && file.name.toLowerCase().match(/\.(pdf)$/) ? (
-                <object data={file.url || file.preview} type="application/pdf" className="absolute inset-0 w-full h-full border-0 bg-white">
-                  <iframe src={file.url || file.preview} className="w-full h-full border-0 bg-white" title="Document Preview" />
-                </object>
-              ) : (file.url || file.preview) && file.name.toLowerCase().match(/\.(txt|csv)$/) ? (
-                <iframe src={file.url || file.preview} className="absolute inset-0 w-full h-full border-0 bg-white" title="Document Preview" />
-              ) : (file.url || file.preview) ? (
+              {mediaLoading && documentPreviewSrc && (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().match(/\.(txt|csv)$/)) && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800 z-20">
+                  <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full" />
+                </div>
+              )}
+              {documentPreviewSrc && file.name.toLowerCase().endsWith('.pdf') ? (
+                <iframe
+                  src={documentPreviewSrc}
+                  className={`absolute inset-0 w-full h-full border-0 bg-white transition-opacity duration-300 ${mediaLoading ? 'opacity-0' : 'opacity-100'}`}
+                  title="Document Preview"
+                  onLoad={() => setMediaLoading(false)}
+                />
+              ) : documentPreviewSrc && file.name.toLowerCase().match(/\.(txt|csv)$/) ? (
+                <iframe
+                  src={documentPreviewSrc}
+                  className={`absolute inset-0 w-full h-full border-0 bg-white transition-opacity duration-300 ${mediaLoading ? 'opacity-0' : 'opacity-100'}`}
+                  title="Document Preview"
+                  onLoad={() => setMediaLoading(false)}
+                />
+              ) : documentPreviewSrc ? (
                 <div className="flex justify-center p-8 absolute inset-0 overflow-y-auto bg-gray-50/50">
                   <div className={`w-full max-w-md rounded-2xl overflow-hidden shadow-xl h-fit ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
                     <div className="h-48 flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-700">
@@ -263,7 +327,7 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
                         {getFileIcon(file.name, file.type)()}
                         <p className="mt-4 font-bold text-sm text-gray-500">{file.name.split('.').pop().toUpperCase()}</p>
                       </div>
-                      <a href={file.url || file.preview} download={file.name} className="mt-4 px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-colors text-sm font-semibold flex items-center gap-2">
+                      <a href={documentDownloadSrc || documentPreviewSrc} download={file.name} className="mt-4 px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-colors text-sm font-semibold flex items-center gap-2">
                         <Ic.Download /> Download to View
                       </a>
                     </div>
@@ -298,9 +362,13 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
             <span className={`px-3 py-1 rounded-full text-xs font-medium bg-linear-to-r ${tGrad(file.type)} text-white`}>{file.type}</span>
           </div>
           <div className="flex items-center justify-end gap-3">
-            <button className="px-4 py-2 rounded-xl bg-linear-to-r from-emerald-500 to-teal-400 text-white text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all min-w-0">
+            <a
+              href={documentDownloadSrc || documentPreviewSrc || '#'}
+              download={file.name}
+              className={`px-4 py-2 rounded-xl bg-linear-to-r from-emerald-500 to-teal-400 text-white text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all min-w-0 ${!documentPreviewSrc ? 'pointer-events-none opacity-40' : ''}`}
+            >
               <Ic.Download /> Download
-            </button>
+            </a>
             <button 
               onClick={() => {
                 // SweetAlert2 confirmation for delete

@@ -27,7 +27,6 @@ export default function App() {
   const [isDark, setIsDark] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mob, setMob] = useState(false);
-  const [cat, setCat] = useState('home');
   const [q, setQ] = useState('');
   const [files, setFiles] = useState(initialFiles);
   const filesRef = useRef(files);
@@ -60,11 +59,11 @@ export default function App() {
 
   const getCatFromPath = (path) => {
     if (!path) return 'home';
-    return routeToCat[path] || 'home';
+    const normalizedPath = path.endsWith('/') && path.length > 1 ? path.slice(0, -1) : path;
+    return routeToCat[normalizedPath] || 'home';
   };
 
   const handleSetCat = (nextCat) => {
-    setCat(nextCat);
     const target = catToRoute[nextCat] || '/dashboard';
     if (pathname !== target) {
       router.push(target);
@@ -325,13 +324,6 @@ export default function App() {
       }
     }
   }, [files]);
-
-  useEffect(() => {
-    const nextCat = getCatFromPath(pathname);
-    if (nextCat !== cat) {
-      setCat(nextCat);
-    }
-  }, [pathname]);
 
   useEffect(() => {
     if (!sessionChecked || !pathname) return;
@@ -724,6 +716,8 @@ export default function App() {
     }
   };
 
+  const activeCat = getCatFromPath(pathname);
+
   return (
     <ThemeContext.Provider value={{ isDark, setIsDark }}>
       <Toaster position="top-right" richColors theme={isDark ? 'dark' : 'light'} />
@@ -734,7 +728,7 @@ export default function App() {
 
         {/* Sidebar Component */}
         <Sidebar 
-          cat={cat} 
+          cat={activeCat} 
           setCat={handleSetCat} 
           collapsed={collapsed} 
           setCollapsed={setCollapsed} 
@@ -761,16 +755,16 @@ export default function App() {
 
           {/* Page Routing/Content */}
           <div className="flex-1 overflow-y-auto w-full h-full pb-8 scroll-smooth" id="scroll-container">
-            {cat === 'analytics' ? (
+            {activeCat === 'analytics' ? (
               <AnalyticsPage isDark={isDark} />
-            ) : cat === 'settings' ? (
+            ) : activeCat === 'settings' ? (
               <SettingsPage isDark={isDark} user={user} setUser={setUser} />
             ) : (
               <Dashboard 
                 isDark={isDark} 
                 files={files} 
                 setFiles={setFiles} 
-                cat={cat} 
+                cat={activeCat} 
                 q={q} 
                 setQ={setQ}
                 user={user}
@@ -782,7 +776,7 @@ export default function App() {
 
         {/* Mobile Navigation */}
         <MobNav 
-          cat={cat} 
+          cat={activeCat} 
           setCat={handleSetCat} 
           onUp={() => setUpOpen(true)} 
           isDark={isDark} 
