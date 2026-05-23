@@ -6,14 +6,18 @@ import { tIcon, tGrad, fmt, getFileIcon } from '../../utils';
 export const FileCard = ({ file, isGrid, isDark, onPreview, onDelete, idx }) => {
   const TI = getFileIcon(file.name, file.type);
   const [mediaFailed, setMediaFailed] = useState(false);
+  const [mediaLoading, setMediaLoading] = useState(false);
 
   useEffect(() => {
     setMediaFailed(false);
+    const sourceExists = !!(file?.thumb || file?.url);
+    setMediaLoading((file?.type === 'image' || file?.type === 'video') && sourceExists);
   }, [file?.id]);
 
   const imageSource = file.thumb || file.url;
+  const videoSource = file.url || file.thumb;
   const canShowImage = file.type === 'image' && imageSource && !mediaFailed;
-  const canShowVideo = file.type === 'video' && (file.url || file.thumb) && !mediaFailed;
+  const canShowVideo = file.type === 'video' && videoSource && !mediaFailed;
 
   return (
     <motion.div layout initial={{ opacity: 0, y: 25 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.4, delay: idx * 0.04 }} whileHover={{ scale: 1.02, y: -4 }} onClick={() => onPreview(file)} className={`group relative rounded-3xl overflow-hidden cursor-pointer transition-all duration-300 ${isDark ? 'bg-gray-800/40 hover:bg-gray-800/70 border border-gray-700/50 hover:shadow-[0_8px_30px_rgb(0,0,0,0.3)]' : 'bg-white border border-gray-100 shadow-sm hover:shadow-xl'}`}>
@@ -23,10 +27,39 @@ export const FileCard = ({ file, isGrid, isDark, onPreview, onDelete, idx }) => 
       </motion.div>
       {isGrid && (
         <div className="relative h-36 overflow-hidden">
+          {(canShowImage || canShowVideo) && mediaLoading && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                className="h-8 w-8 rounded-full border-3 border-white/40 border-t-emerald-400"
+              />
+            </div>
+          )}
           {canShowImage ? (
-            <img src={imageSource} alt="" onError={() => setMediaFailed(true)} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+            <img
+              src={imageSource}
+              alt=""
+              onLoad={() => setMediaLoading(false)}
+              onError={() => {
+                setMediaFailed(true);
+                setMediaLoading(false);
+              }}
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+            />
           ) : canShowVideo ? (
-            <video src={file.url || file.thumb} onError={() => setMediaFailed(true)} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 pointer-events-none" preload="metadata" />
+            <video
+              src={videoSource}
+              onLoadedData={() => setMediaLoading(false)}
+              onError={() => {
+                setMediaFailed(true);
+                setMediaLoading(false);
+              }}
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 pointer-events-none"
+              preload="metadata"
+              muted
+              playsInline
+            />
           ) : (
             <div className={`relative h-full flex items-center justify-center ${file.type === 'doc' ? 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700' : ''} transition-all duration-500`}>
               {file.type !== 'doc' && (
@@ -41,10 +74,39 @@ export const FileCard = ({ file, isGrid, isDark, onPreview, onDelete, idx }) => 
       <div className={`relative z-10 p-5 ${!isGrid ? 'flex items-center gap-4' : ''}`}>
         {!isGrid && (
           <div className={`relative w-12 h-12 rounded-2xl ${file.type === 'doc' ? 'bg-gray-100 dark:bg-gray-800' : `bg-gradient-to-br ${tGrad(file.type)} text-white`} flex items-center justify-center flex-shrink-0 shadow-md overflow-hidden`}>
+            {(canShowImage || canShowVideo) && mediaLoading && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/25">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                  className="h-4 w-4 rounded-full border-2 border-white/50 border-t-emerald-300"
+                />
+              </div>
+            )}
             {canShowImage ? (
-              <img src={imageSource} alt="" onError={() => setMediaFailed(true)} className="w-full h-full object-cover" />
+              <img
+                src={imageSource}
+                alt=""
+                onLoad={() => setMediaLoading(false)}
+                onError={() => {
+                  setMediaFailed(true);
+                  setMediaLoading(false);
+                }}
+                className="w-full h-full object-cover"
+              />
             ) : canShowVideo ? (
-              <video src={file.url || file.thumb} onError={() => setMediaFailed(true)} className="w-full h-full object-cover pointer-events-none" preload="metadata" />
+              <video
+                src={videoSource}
+                onLoadedData={() => setMediaLoading(false)}
+                onError={() => {
+                  setMediaFailed(true);
+                  setMediaLoading(false);
+                }}
+                className="w-full h-full object-cover pointer-events-none"
+                preload="metadata"
+                muted
+                playsInline
+              />
             ) : (
               <motion.div whileHover={{ scale: 1.2, rotate: 10 }} transition={{ type: "spring" }}><TI /></motion.div>
             )}

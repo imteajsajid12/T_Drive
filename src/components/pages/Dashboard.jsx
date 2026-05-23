@@ -257,7 +257,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
-              {/* <motion.button
+              <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
@@ -267,8 +267,8 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
                 className="flex justify-center items-center h-10 px-4 rounded-xl font-bold text-xs sm:text-sm bg-[#0088cc] text-white hover:bg-[#0077b5] transition-colors shadow-lg shadow-[#0088cc]/20 gap-2"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.665 3.717l-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701h-.002l.002.001-.314 4.692c.46 0 .663-.211.921-.46l2.211-2.15 4.599 3.397c.848.467 1.457.227 1.668-.785l3.019-14.228c.309-1.239-.473-1.8-1.282-1.434z"/></svg> Sync New
-              </motion.button> */}
-              {/* <motion.button
+              </motion.button>
+              <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
@@ -279,7 +279,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
                 title="Force full sync - fetches all files from Telegram"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Full Sync
-              </motion.button> */}
+              </motion.button>
             </div>
             <div className={`flex p-1 rounded-xl shadow-sm ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
               <button onClick={() => setIsGrid(true)} className={`p-2 rounded-lg transition-colors ${isGrid ? (isDark ? 'bg-gray-700 text-emerald-400 shadow-sm' : 'bg-gray-100 text-emerald-600 shadow-sm') : (isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700/50' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50')}`}>
