@@ -18,10 +18,11 @@ import { normalizeSizeText } from './utils';
 import { Toaster, toast } from 'sonner';
 import { useRef } from 'react';
 import Swal from 'sweetalert2';
+import { usePathname, useRouter } from 'next/navigation';
 
 export default function App() {
   const [auth, setAuth] = useState(false);
-  const [showLogin, setShowLogin] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
   const [user, setUser] = useState(null);
   const [isDark, setIsDark] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -30,10 +31,45 @@ export default function App() {
   const [q, setQ] = useState('');
   const [files, setFiles] = useState(initialFiles);
   const filesRef = useRef(files);
+  const router = useRouter();
+  const pathname = usePathname();
 
   const getUserStorageKey = (suffix, userId = user?.$id || 'guest') => `tDrive:${userId}:${suffix}`;
   const readUserStorage = (suffix, userId = user?.$id || 'guest') => localStorage.getItem(getUserStorageKey(suffix, userId));
   const writeUserStorage = (suffix, value, userId = user?.$id || 'guest') => localStorage.setItem(getUserStorageKey(suffix, userId), value);
+  const routeToCat = {
+    '/dashboard': 'home',
+    '/dashboard/files': 'files',
+    '/dashboard/images': 'image',
+    '/dashboard/videos': 'video',
+    '/dashboard/music': 'music',
+    '/dashboard/documents': 'doc',
+    '/analytics': 'analytics',
+    '/settings': 'settings'
+  };
+  const catToRoute = {
+    home: '/dashboard',
+    files: '/dashboard/files',
+    image: '/dashboard/images',
+    video: '/dashboard/videos',
+    music: '/dashboard/music',
+    doc: '/dashboard/documents',
+    analytics: '/analytics',
+    settings: '/settings'
+  };
+
+  const getCatFromPath = (path) => {
+    if (!path) return 'home';
+    return routeToCat[path] || 'home';
+  };
+
+  const handleSetCat = (nextCat) => {
+    setCat(nextCat);
+    const target = catToRoute[nextCat] || '/dashboard';
+    if (pathname !== target) {
+      router.push(target);
+    }
+  };
 
   useEffect(() => {
     filesRef.current = files;
@@ -146,6 +182,8 @@ export default function App() {
       } catch (err) {
         console.warn('No active session found.');
         setAuth(false);
+      } finally {
+        setSessionChecked(true);
       }
     };
     checkSession();
@@ -287,6 +325,28 @@ export default function App() {
       }
     }
   }, [files]);
+
+  useEffect(() => {
+    const nextCat = getCatFromPath(pathname);
+    if (nextCat !== cat) {
+      setCat(nextCat);
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!sessionChecked || !pathname) return;
+
+    const isPublicRoute = pathname === '/' || pathname === '/login' || pathname === '/registration';
+
+    if (!auth && !isPublicRoute) {
+      router.replace('/login');
+      return;
+    }
+
+    if (auth && (pathname === '/login' || pathname === '/registration')) {
+      router.replace('/dashboard');
+    }
+  }, [auth, pathname, router, sessionChecked]);
 
   // Telegram Auto-Sync Logic
   useEffect(() => {
@@ -621,25 +681,37 @@ export default function App() {
   // ----------------------------------------------------
   // RENDER APP Content
   // ----------------------------------------------------
+  if (!sessionChecked) {
+    return null;
+  }
+
   if (!auth) {
-    if (showLogin) {
+    if (pathname === '/login' || pathname === '/registration') {
       return (
         <LoginPage 
           isDark={isDark} 
+          initialMode={pathname === '/registration' ? 'signup' : 'signin'}
           onLogin={async () => {
             try {
               const u = await account.get();
               setUser(u);
               setAuth(true);
+              router.replace('/dashboard');
             } catch(e) {
               console.error(e);
             }
           }} 
-          onBack={() => setShowLogin(false)}
+          onBack={() => router.push('/')}
+          onSwitchMode={(mode) => router.push(mode === 'signup' ? '/registration' : '/login')}
         />
       );
     }
-    return <LandingPage onLoginClick={() => setShowLogin(true)} />;
+
+    return <LandingPage onLoginClick={() => router.push('/login')} />;
+  }
+
+  if (pathname === '/') {
+    return <LandingPage onLoginClick={() => router.push('/dashboard')} />;
   }
 
   const handleLogout = async () => {
@@ -663,7 +735,7 @@ export default function App() {
         {/* Sidebar Component */}
         <Sidebar 
           cat={cat} 
-          setCat={setCat} 
+          setCat={handleSetCat} 
           collapsed={collapsed} 
           setCollapsed={setCollapsed} 
           isDark={isDark} 
@@ -683,7 +755,7 @@ export default function App() {
             q={q} 
             setQ={setQ} 
             user={{ name: user?.name || 'User', email: user?.email || 'user@example.com' }} 
-            setCat={setCat}
+            setCat={handleSetCat}
             onLogout={handleLogout} 
           />
 
@@ -711,7 +783,7 @@ export default function App() {
         {/* Mobile Navigation */}
         <MobNav 
           cat={cat} 
-          setCat={setCat} 
+          setCat={handleSetCat} 
           onUp={() => setUpOpen(true)} 
           isDark={isDark} 
         />

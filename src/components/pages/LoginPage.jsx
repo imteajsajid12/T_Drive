@@ -3,8 +3,8 @@ import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
 import { account } from '../../lib/appwrite';
 
-export const LoginPage = ({ isDark, onLogin, onBack }) => {
-  const [isSignUp, setIsSignUp] = useState(false);
+export const LoginPage = ({ isDark, onLogin, onBack, initialMode = 'signin', onSwitchMode }) => {
+  const [isSignUp, setIsSignUp] = useState(initialMode === 'signup');
   const [isMuted, setIsMuted] = useState(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('admin@tdrive.com');
@@ -24,6 +24,10 @@ export const LoginPage = ({ isDark, onLogin, onBack }) => {
       size: 20 + Math.random() * 20
     })));
   }, []);
+
+  useEffect(() => {
+    setIsSignUp(initialMode === 'signup');
+  }, [initialMode]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -73,7 +77,7 @@ export const LoginPage = ({ isDark, onLogin, onBack }) => {
           className={`object-cover w-full h-full blur-sm scale-110 ${isDark ? 'opacity-60' : 'opacity-30'}`}
           src="https://cdn.pixabay.com/video/2021/05/04/73100-546747167_tiny.mp4"
         />
-        <div className={`absolute inset-0 ${isDark ? 'bg-gray-900/70' : 'bg-gradient-to-br from-emerald-50/80 to-teal-100/60'}`}></div>
+        <div className={`absolute inset-0 ${isDark ? 'bg-gray-900/70' : 'bg-linear-to-br from-emerald-50/80 to-teal-100/60'}`}></div>
       </div>
 
       {/* Floating Music Icons Animation */}
@@ -131,13 +135,13 @@ export const LoginPage = ({ isDark, onLogin, onBack }) => {
         initial={{ opacity: 0, y: 40, scale: 0.9 }} 
         animate={{ opacity: 1, y: 0, scale: 1 }} 
         transition={{ type: 'spring', duration: 1, bounce: 0.4 }}
-        className={`relative z-10 w-full max-w-md p-8 rounded-[2rem] shadow-2xl backdrop-blur-xl ${isDark ? 'bg-gray-800/80 border border-gray-700/50' : 'bg-white/90 border border-white/50'}`}
+        className={`relative z-10 w-full max-w-md p-8 rounded-4xl shadow-2xl backdrop-blur-xl ${isDark ? 'bg-gray-800/80 border border-gray-700/50' : 'bg-white/90 border border-white/50'}`}
       >
         <div className="text-center mb-8">
           <motion.div 
             whileHover={{ rotate: 180, scale: 1.1 }}
             transition={{ type: "spring", stiffness: 200 }}
-            className="w-16 h-16 mx-auto bg-gradient-to-br from-emerald-500 to-teal-400 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30 mb-4 cursor-pointer"
+            className="w-16 h-16 mx-auto bg-linear-to-br from-emerald-500 to-teal-400 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30 mb-4 cursor-pointer"
           >
             <span className="text-white text-3xl font-black">T</span>
           </motion.div>
@@ -212,16 +216,23 @@ export const LoginPage = ({ isDark, onLogin, onBack }) => {
             disabled={loading}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
-            className={`w-full py-4 mt-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-bold text-sm shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/40 relative overflow-hidden group ${loading ? 'opacity-70 cursor-wait' : ''}`}
+            className={`w-full py-4 mt-2 rounded-xl bg-linear-to-r from-emerald-500 to-teal-400 text-white font-bold text-sm shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/40 relative overflow-hidden group ${loading ? 'opacity-70 cursor-wait' : ''}`}
           >
             <span className="relative z-10">{loading ? 'Processing...' : (isSignUp ? 'Sign Up' : 'Sign In')}</span>
-            <div className="absolute inset-0 h-full w-full opacity-0 group-hover:opacity-20 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.5),transparent)] -translate-x-[150%] group-hover:translate-x-[150%] transition-all duration-700 ease-out"></div>
+            <div className="absolute inset-0 h-full w-full opacity-0 group-hover:opacity-20 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.5),transparent)] translate-x-[-150%] group-hover:translate-x-[150%] transition-all duration-700 ease-out"></div>
           </motion.button>
           
           <div className="mt-4 text-center">
             <button 
               type="button" 
-              onClick={() => { setIsSignUp(!isSignUp); setError(''); }} 
+              onClick={() => {
+                const nextIsSignUp = !isSignUp;
+                setIsSignUp(nextIsSignUp);
+                setError('');
+                if (onSwitchMode) {
+                  onSwitchMode(nextIsSignUp ? 'signup' : 'signin');
+                }
+              }} 
               className={`text-xs font-bold transition-colors ${isDark ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-600 hover:text-emerald-600'}`}
             >
               {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}

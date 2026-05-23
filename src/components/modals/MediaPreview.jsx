@@ -120,22 +120,29 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4" onClick={onClose}>
       <motion.div initial={{ scale: 0.85, y: 40 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.85, y: 40 }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        onClick={(e) => e.stopPropagation()} className={`w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl ${isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-gray-200'}`}>
+        onClick={(e) => e.stopPropagation()} className={`relative w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl ${isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-gray-200'}`}>
+
+        <button
+          onClick={onClose}
+          aria-label="Close preview"
+          className={`absolute top-3 right-3 z-20 p-2 rounded-xl transition-colors ${isDark ? 'bg-gray-800/90 hover:bg-gray-700 text-gray-300' : 'bg-white/95 hover:bg-gray-100 text-gray-600'} shadow-lg backdrop-blur-sm`}
+        >
+          <Ic.X />
+        </button>
         
         {/* Header */}
-        <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl ${file.type === 'doc' ? 'bg-gray-100 dark:bg-gray-800' : `bg-gradient-to-br ${tGrad(file.type)} text-white`} flex items-center justify-center shadow-md`}>
+        <div className={`flex items-start sm:items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+          <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+            <div className={`w-10 h-10 rounded-xl shrink-0 ${file.type === 'doc' ? 'bg-gray-100 dark:bg-gray-800' : `bg-linear-to-br ${tGrad(file.type)} text-white`} flex items-center justify-center shadow-md`}>
               {getFileIcon(file.name, file.type)()}
             </div>
-            <div>
-              <h2 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-800'}`}>{file.name}</h2>
-              <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{file.size} • {fmt(file.date)}</p>
+            <div className="min-w-0">
+              <h2 title={file.name} className={`font-bold text-sm wrap-break-word ${isDark ? 'text-white' : 'text-gray-800'}`}>{file.name}</h2>
+              <p className={`text-xs truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{file.size} • {fmt(file.date)}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}><Ic.Download /></button>
-            <button onClick={onClose} className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}><Ic.X /></button>
           </div>
         </div>
 
@@ -144,7 +151,7 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
           {/* AUDIO PLAYER */}
           {file.type === 'music' && (
             <div className="flex flex-col items-center">
-              <motion.div className="w-48 h-48 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-2xl mb-8 flex items-center justify-center overflow-hidden" animate={isPlaying ? { scale: [1, 1.03, 1] } : { scale: 1 }} transition={{ duration: 2, repeat: isPlaying ? Infinity : 0, ease: 'easeInOut' }}>
+              <motion.div className="w-48 h-48 rounded-3xl bg-linear-to-br from-emerald-500 to-teal-600 shadow-2xl mb-8 flex items-center justify-center overflow-hidden" animate={isPlaying ? { scale: [1, 1.03, 1] } : { scale: 1 }} transition={{ duration: 2, repeat: isPlaying ? Infinity : 0, ease: 'easeInOut' }}>
                 <motion.div animate={isPlaying ? { rotate: 360 } : {}} transition={{ duration: 8, repeat: Infinity, ease: 'linear' }} className="scale-[3] text-white">
                   <Ic.Music />
                 </motion.div>
@@ -153,7 +160,7 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
               <p className={`text-sm mb-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Audio Track</p>
               <div className="w-full max-w-md mb-6">
                 <div ref={progressRef} onClick={handleProgressClick} className={`h-1.5 rounded-full cursor-pointer mb-2 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`} role="slider" aria-label="Audio progress">
-                  <motion.div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 relative" style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}>
+                  <motion.div className="h-full rounded-full bg-linear-to-r from-emerald-500 to-teal-400 relative" style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}>
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white shadow-lg border-2 border-emerald-500" />
                   </motion.div>
                 </div>
@@ -164,7 +171,7 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
               </div>
               <div className="flex items-center gap-6 mb-6">
                 <button onClick={seekBack} className={`p-2 rounded-full transition-colors ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}><Ic.SkipBack /></button>
-                <button onClick={togglePlay} className="w-16 h-16 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-xl shadow-emerald-500/30 hover:shadow-emerald-500/50 transition-all hover:scale-105">
+                <button onClick={togglePlay} className="w-16 h-16 rounded-full bg-linear-to-r from-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-xl shadow-emerald-500/30 hover:shadow-emerald-500/50 transition-all hover:scale-105">
                   {isPlaying ? <Ic.Pause /> : <Ic.Play />}
                 </button>
                 <button onClick={seekForward} className={`p-2 rounded-full transition-colors ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}><Ic.SkipForward /></button>
@@ -188,7 +195,7 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
                   <span className="text-white/50 text-sm">Video source unavailable</span>
                  </div>
               )}
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                 <div onClick={handleVideoProgressClick} className="h-1 rounded-full cursor-pointer mb-3 bg-white/20 hover:h-1.5 transition-all">
                   <div className="h-full rounded-full bg-emerald-500 relative" style={{ width: videoDuration ? `${(videoTime / videoDuration) * 100}%` : '0%' }}>
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white opacity-0 hover:opacity-100 transition-opacity" />
@@ -226,7 +233,7 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
                 onMouseLeave={handleImageMouseUp}
               >
                 {mediaError ? (
-                  <div className="min-h-[320px] min-w-[320px] flex items-center justify-center rounded-lg bg-white/5 border border-white/10">
+                  <div className="min-h-80 min-w-80 flex items-center justify-center rounded-lg bg-white/5 border border-white/10">
                     <div className="text-center px-6 py-8">
                       <div className="text-white/80 text-sm font-semibold">Image unavailable</div>
                       <div className="text-white/40 text-xs mt-2">The Telegram URL no longer resolves, but the file record is still in your dashboard.</div>
@@ -273,7 +280,7 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
               ) : (
                 <div className="flex items-center justify-center h-full absolute inset-0">
                   <div className="text-center">
-                    <div className={`w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br ${tGrad(file.type)} text-white flex items-center justify-center shadow-lg mb-4`}>
+                    <div className={`w-16 h-16 mx-auto rounded-2xl bg-linear-to-br ${tGrad(file.type)} text-white flex items-center justify-center shadow-lg mb-4`}>
                       <Ic.FileText />
                     </div>
                     <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-800'}`}>{file.name}</p>
@@ -286,12 +293,12 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
         </div>
 
         {/* Footer */}
-        <div className={`flex items-center justify-between px-6 py-4 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+        <div className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
           <div className="flex items-center gap-2">
-            <span className={`px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r ${tGrad(file.type)} text-white`}>{file.type}</span>
+            <span className={`px-3 py-1 rounded-full text-xs font-medium bg-linear-to-r ${tGrad(file.type)} text-white`}>{file.type}</span>
           </div>
-          <div className="flex items-center gap-3">
-            <button className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all">
+          <div className="flex items-center justify-end gap-3">
+            <button className="px-4 py-2 rounded-xl bg-linear-to-r from-emerald-500 to-teal-400 text-white text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all min-w-0">
               <Ic.Download /> Download
             </button>
             <button 
