@@ -21,15 +21,29 @@ export const SectionWrapper = ({ children, className = '' }) => {
 };
 
 // ====== NAVBAR ======
-export const Navbar = ({ dark, onLoginClick }) => {
+export const Navbar = ({ dark, onLoginClick, isAuthed = false, user, onDashboardClick, onProfileClick, onLogout }) => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef(null);
   useEffect(() => {
     const h = () => setScrolled(window.scrollY > 50);
     window.addEventListener('scroll', h);
     return () => window.removeEventListener('scroll', h);
   }, []);
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setProfileOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
   const links = ['Features', 'Bot Creator', 'Pricing', 'FAQ'];
+  const displayName = user?.name?.trim() || user?.email?.split('@')?.[0] || 'User';
+  const avatarInitial = displayName.slice(0, 1).toUpperCase();
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? (dark ? 'bg-gray-900/90 backdrop-blur-xl border-b border-gray-800/50 shadow-lg shadow-black/10' : 'bg-white/80 backdrop-blur-xl border-b border-gray-200/50 shadow-sm') : 'bg-transparent'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
@@ -45,8 +59,35 @@ export const Navbar = ({ dark, onLoginClick }) => {
           ))}
         </div>
         <div className="hidden lg:flex items-center gap-3">
-          <button onClick={onLoginClick} className={`text-sm font-medium px-4 py-2.5 rounded-xl transition-colors ${dark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'}`}>Login</button>
-          <motion.button onClick={onLoginClick} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-bold text-sm shadow-lg shadow-emerald-500/20">Get Started</motion.button>
+          {isAuthed ? (
+            <div className="relative" ref={profileRef}>
+              <button
+                onClick={() => setProfileOpen((v) => !v)}
+                className={`flex items-center gap-3 px-3 py-2 rounded-2xl transition-all ${dark ? 'bg-gray-800/70 hover:bg-gray-800 border border-gray-700' : 'bg-white/80 hover:bg-white border border-white/80 shadow-sm'}`}
+              >
+                <span className="w-9 h-9 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-400 text-white flex items-center justify-center font-black shadow-md shadow-emerald-500/20">{avatarInitial}</span>
+                <span className={`text-sm font-semibold max-w-28 truncate ${dark ? 'text-white' : 'text-gray-800'}`}>{displayName}</span>
+              </button>
+              {profileOpen && (
+                <motion.div initial={{ opacity: 0, y: 8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.96 }} className={`absolute right-0 top-14 w-56 rounded-2xl overflow-hidden shadow-2xl ${dark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
+                  <div className={`p-4 border-b ${dark ? 'border-gray-700' : 'border-gray-100'}`}>
+                    <p className={`font-bold text-sm ${dark ? 'text-white' : 'text-gray-800'}`}>{displayName}</p>
+                    <p className={`text-[10px] truncate ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{user?.email || ''}</p>
+                  </div>
+                  <div className="p-2 space-y-1">
+                    <button onClick={() => { setProfileOpen(false); onDashboardClick && onDashboardClick(); }} className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm ${dark ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-emerald-50 text-gray-700'}`}><Ic.Grid /> Dashboard</button>
+                    <button onClick={() => { setProfileOpen(false); onProfileClick && onProfileClick(); }} className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm ${dark ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-emerald-50 text-gray-700'}`}><Ic.Users /> Profile</button>
+                    <button onClick={() => { setProfileOpen(false); onLogout && onLogout(); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-red-500 hover:bg-red-50"><Ic.Shield /> Logout</button>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          ) : (
+            <>
+              <button onClick={onLoginClick} className={`text-sm font-medium px-4 py-2.5 rounded-xl transition-colors ${dark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'}`}>Login</button>
+              <motion.button onClick={onLoginClick} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-bold text-sm shadow-lg shadow-emerald-500/20">Get Started</motion.button>
+            </>
+          )}
         </div>
         <button onClick={() => setMobileOpen(!mobileOpen)} className={`lg:hidden p-2 rounded-xl ${dark ? 'text-white' : 'text-gray-800'}`}>
           {mobileOpen ? <Ic.X /> : <Ic.Menu />}
@@ -59,8 +100,18 @@ export const Navbar = ({ dark, onLoginClick }) => {
               {links.map((l) => (
                 <motion.a key={l} href={`#${l.toLowerCase().replace(' ', '-')}`} onClick={() => setMobileOpen(false)} whileTap={{ scale: 0.95 }} className={`block text-sm font-medium py-2 ${dark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-800'}`}>{l}</motion.a>
               ))}
-              <button onClick={() => { setMobileOpen(false); onLoginClick(); }} className="w-full mt-2 px-5 py-3 rounded-xl bg-transparent border border-emerald-500 text-emerald-500 font-bold text-sm">Login</button>
-              <button className="w-full mt-2 px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-bold text-sm">Get Started</button>
+              {isAuthed ? (
+                <>
+                  <button onClick={() => { setMobileOpen(false); onDashboardClick && onDashboardClick(); }} className={`w-full mt-2 px-5 py-3 rounded-xl font-bold text-sm ${dark ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-800'}`}>Dashboard</button>
+                  <button onClick={() => { setMobileOpen(false); onProfileClick && onProfileClick(); }} className={`w-full mt-2 px-5 py-3 rounded-xl font-bold text-sm ${dark ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-800'}`}>Profile</button>
+                  <button onClick={() => { setMobileOpen(false); onLogout && onLogout(); }} className="w-full mt-2 px-5 py-3 rounded-xl bg-transparent border border-red-500 text-red-500 font-bold text-sm">Logout</button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => { setMobileOpen(false); onLoginClick(); }} className="w-full mt-2 px-5 py-3 rounded-xl bg-transparent border border-emerald-500 text-emerald-500 font-bold text-sm">Login</button>
+                  <button className="w-full mt-2 px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-bold text-sm">Get Started</button>
+                </>
+              )}
             </div>
           </motion.div>
         )}

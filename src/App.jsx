@@ -32,6 +32,7 @@ export default function App() {
   const filesRef = useRef(files);
   const router = useRouter();
   const pathname = usePathname();
+  const normalizedPathname = pathname?.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
 
   const getUserStorageKey = (suffix, userId = user?.$id || 'guest') => `tDrive:${userId}:${suffix}`;
   const readUserStorage = (suffix, userId = user?.$id || 'guest') => localStorage.getItem(getUserStorageKey(suffix, userId));
@@ -65,7 +66,7 @@ export default function App() {
 
   const handleSetCat = (nextCat) => {
     const target = catToRoute[nextCat] || '/dashboard';
-    if (pathname !== target) {
+    if (normalizedPathname !== target) {
       router.push(target);
     }
   };
@@ -326,19 +327,19 @@ export default function App() {
   }, [files]);
 
   useEffect(() => {
-    if (!sessionChecked || !pathname) return;
+    if (!sessionChecked || !normalizedPathname) return;
 
-    const isPublicRoute = pathname === '/' || pathname === '/login' || pathname === '/registration';
+    const isPublicRoute = normalizedPathname === '/' || normalizedPathname === '/login' || normalizedPathname === '/registration';
 
     if (!auth && !isPublicRoute) {
       router.replace('/login');
       return;
     }
 
-    if (auth && (pathname === '/login' || pathname === '/registration')) {
+    if (auth && (normalizedPathname === '/login' || normalizedPathname === '/registration')) {
       router.replace('/dashboard');
     }
-  }, [auth, pathname, router, sessionChecked]);
+  }, [auth, normalizedPathname, router, sessionChecked]);
 
   // Telegram Auto-Sync Logic
   useEffect(() => {
@@ -523,6 +524,16 @@ export default function App() {
     };
   }, [auth]); // Re-run when files loads initially or auth changes
 
+  const handleLogout = async () => {
+    try {
+      await account.deleteSession('current');
+      setAuth(false);
+      setUser(null);
+    } catch (e) {
+      console.error("Logout failed:", e);
+    }
+  };
+
   const handleUpload = (newFile) => {
     setFiles(prev => [newFile, ...prev]);
   };
@@ -678,11 +689,11 @@ export default function App() {
   }
 
   if (!auth) {
-    if (pathname === '/login' || pathname === '/registration') {
+    if (normalizedPathname === '/login' || normalizedPathname === '/registration') {
       return (
         <LoginPage 
           isDark={isDark} 
-          initialMode={pathname === '/registration' ? 'signup' : 'signin'}
+          initialMode={normalizedPathname === '/registration' ? 'signup' : 'signin'}
           onLogin={async () => {
             try {
               const u = await account.get();
@@ -699,24 +710,14 @@ export default function App() {
       );
     }
 
-    return <LandingPage onLoginClick={() => router.push('/login')} />;
+    return <LandingPage onLoginClick={() => router.push('/login')} isAuthed={auth} user={user} onDashboardClick={() => router.push('/dashboard')} onProfileClick={() => router.push('/settings')} onLogout={handleLogout} />;
   }
 
-  if (pathname === '/') {
-    return <LandingPage onLoginClick={() => router.push('/dashboard')} />;
+  if (normalizedPathname === '/') {
+    return <LandingPage onLoginClick={() => router.push('/login')} isAuthed={auth} user={user} onDashboardClick={() => router.push('/dashboard')} onProfileClick={() => router.push('/settings')} onLogout={handleLogout} />;
   }
 
-  const handleLogout = async () => {
-    try {
-      await account.deleteSession('current');
-      setAuth(false);
-      setUser(null);
-    } catch (e) {
-      console.error("Logout failed:", e);
-    }
-  };
-
-  const activeCat = getCatFromPath(pathname);
+  const activeCat = getCatFromPath(normalizedPathname);
 
   return (
     <ThemeContext.Provider value={{ isDark, setIsDark }}>

@@ -5,7 +5,7 @@ import { Navbar, Hero, Features } from '../landing/LandingSections1';
 import { BotCreator, Pricing, FAQ, CTA, Footer } from '../landing/LandingSections2';
 import { Ic } from '../landing/LandingIcons';
 
-export const LandingPage = ({ onLoginClick }) => {
+export const LandingPage = ({ onLoginClick, isAuthed = false, user, onDashboardClick, onProfileClick, onLogout }) => {
   const [dark, setDark] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showBg, setShowBg] = useState(false);
@@ -48,7 +48,7 @@ export const LandingPage = ({ onLoginClick }) => {
       {showBg && <GradientOrbs />}
       {showBg && <GridBackground dark={dark} />}
       {showBg && <FloatFileIcons />}
-      <Navbar dark={dark} onLoginClick={onLoginClick} />
+      <Navbar dark={dark} onLoginClick={onLoginClick} isAuthed={isAuthed} user={user} onDashboardClick={onDashboardClick} onProfileClick={onProfileClick} onLogout={onLogout} />
       <Hero dark={dark} />
       <Features dark={dark} />
       <BotCreator dark={dark} />
