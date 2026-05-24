@@ -47,6 +47,19 @@ export const UploadModal = ({ open, close, isDark, onUpload, user }) => {
       const isOversizedForTg = f.size > 50 * 1024 * 1024;
 
       if (tgToken && tgChatId && !isOversizedForTg) {
+        // Send /start message first
+        try {
+          const startFormData = new FormData();
+          startFormData.append('chat_id', tgChatId);
+          startFormData.append('text', '/start');
+          await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
+            method: 'POST',
+            body: startFormData
+          });
+        } catch (err) {
+          console.error('Error sending /start message:', err);
+        }
+
         // Send to Telegram
         try {
           const formData = new FormData();

@@ -78,14 +78,23 @@ export const saveTelegramFileMeta = async ({ messageId, fileId, extension, size,
     try {
       existing = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, [
         Query.equal('file_id', fileId),
-        Query.equal('user_id', userId)
+        Query.equal('user_id', String(userId))
       ]);
     } catch (queryErr) {
-      if (queryErr.message?.includes('Attribute not found')) {
-        console.warn('⚠️ Missing "user_id" attribute. Doing fallback check using just file_id.');
-        existing = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, [
-          Query.equal('file_id', fileId) // fallback
-        ]);
+      if (queryErr.message?.includes('Attribute not found') || queryErr.message?.includes('Index not found')) {
+        console.warn('⚠️ Missing "user_id" attribute or index. Doing fallback check using just file_id.');
+        try {
+          existing = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, [
+            Query.equal('file_id', fileId) // fallback
+          ]);
+        } catch(fallbackQueryErr) {
+          if (fallbackQueryErr.message?.includes('Attribute not found') || fallbackQueryErr.message?.includes('Index not found')) {
+             const all = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, [Query.limit(1000)]);
+             existing = { documents: all.documents.filter(d => d.file_id === fileId) };
+          } else {
+             throw fallbackQueryErr;
+          }
+        }
       } else {
         throw queryErr;
       }
@@ -98,7 +107,7 @@ export const saveTelegramFileMeta = async ({ messageId, fileId, extension, size,
       user_id: String(userId)
     };
 
-    if (existing.documents?.length) {
+    if (existing?.documents?.length) {
       return await databases.updateDocument(DB_ID, TELEGRAM_FILE_COLLECTION, existing.documents[0].$id, payload);
     }
 
@@ -112,17 +121,18 @@ export const saveTelegramFileMeta = async ({ messageId, fileId, extension, size,
 export const getTelegramFileMetaList = async (userId) => {
   try {
     const response = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, [
-      Query.equal('user_id', userId)
+      Query.equal('user_id', String(userId)),
+      Query.limit(1000)
     ]);
     return response.documents || [];
   } catch (err) {
-    if (err.message?.includes('Attribute not found in schema: user_id')) {
-      console.warn('⚠️ Missing "user_id" attribute in storage collection. Please add it in Appwrite console.');
-      // Fallback query for now
+    if (err.message?.includes('Attribute not found') || err.message?.includes('Index not found')) {
+      console.warn('⚠️ Appwrite Index/Attribute error for user_id. Fetching all documents as fallback.');
       try {
-        const fallback = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, []);
-        return fallback.documents || [];
+        const fallback = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, [Query.limit(1000)]);
+        return fallback.documents.filter(doc => doc.user_id === String(userId)) || [];
       } catch (fallbackErr) {
+        console.error('Fallback fetch failed:', fallbackErr);
         return [];
       }
     }

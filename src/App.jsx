@@ -101,6 +101,11 @@ export default function App() {
 
     try {
       const res = await fetch(`https://api.telegram.org/bot${tgToken}/getFile?file_id=${tgFileId}`);
+      if (res.status === 429) {
+        const retryAfter = res.headers.get('Retry-After') || 1;
+        await new Promise(r => setTimeout(r, retryAfter * 1000));
+        return resolveTelegramFileUrl(tgToken, tgFileId);
+      }
       const data = await res.json();
       if (data.ok && data.result?.file_path) {
         return `https://api.telegram.org/file/bot${tgToken}/${data.result.file_path}`;
@@ -110,6 +115,17 @@ export default function App() {
     }
 
     return null;
+  };
+
+  // Helper to chunk promises and avoid rate limits
+  const chunkedPromiseAll = async (items, chunkFn, limit = 5) => {
+    const results = [];
+    for (let i = 0; i < items.length; i += limit) {
+      const chunk = items.slice(i, i + limit);
+      const chunkResults = await Promise.all(chunk.map(chunkFn));
+      results.push(...chunkResults);
+    }
+    return results;
   };
 
   
@@ -225,8 +241,7 @@ export default function App() {
       const telegramFiles = filesRef.current.filter((file) => file.source === 'telegram' && file.tgFileId);
       if (!telegramFiles.length) return;
 
-      const refreshed = await Promise.all(
-        telegramFiles.map(async (file) => {
+      const refreshed = await chunkedPromiseAll(telegramFiles, async (file) => {
           const freshUrl = await resolveTelegramFileUrl(tgToken, file.tgFileId);
           if (!freshUrl || freshUrl === file.url) return file;
 
@@ -237,8 +252,7 @@ export default function App() {
             thumb: file.type === 'image' || file.type === 'video' ? freshUrl : file.thumb,
             telegramUrlCheckedAt: new Date().toISOString()
           };
-        })
-      );
+        }, 5);
 
       let didChange = false;
       const refreshedById = new Map(refreshed.map((file) => [file.id, file]));
@@ -275,7 +289,7 @@ export default function App() {
       const records = await getTelegramFileMetaList(userId);
       if (!records.length) return;
 
-      const entries = await Promise.all(records.map((doc) => buildTelegramFileEntry(doc, tgToken)));
+      const entries = await chunkedPromiseAll(records, (doc) => buildTelegramFileEntry(doc, tgToken), 5);
       const entriesByKey = new Map(entries.map((entry) => [getTelegramFileKey(entry), entry]));
 
       setFiles((prev) => {
@@ -515,8 +529,8 @@ export default function App() {
     };
     window.addEventListener('telegramFullSyncRequested', fullSyncListener);
 
-    // Setup interval to sync every 30 seconds
-    const intervalId = setInterval(syncWithTelegram, 30000);
+    // Setup interval to sync every 60 seconds
+    const intervalId = setInterval(syncWithTelegram, 60000);
     return () => {
       clearInterval(intervalId);
       window.removeEventListener('telegramSyncRequested', manualSyncListener);

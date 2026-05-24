@@ -14,8 +14,15 @@ export const FileCard = ({ file, isGrid, isDark, onPreview, onDelete, idx }) => 
     setMediaLoading((file?.type === 'image' || file?.type === 'video') && sourceExists);
   }, [file?.id]);
 
-  const imageSource = file.thumb || file.url;
-  const videoSource = file.url || file.thumb;
+  const proxify = (url) => {
+    if (!url) return '';
+    if (url.startsWith('https://api.telegram.org')) {
+      return `/api/proxy?url=${encodeURIComponent(url)}`;
+    }
+    return url;
+  };
+  const imageSource = proxify(file.thumb || file.url);
+  const videoSource = proxify(file.url || file.thumb);
   const canShowImage = file.type === 'image' && imageSource && !mediaFailed;
   const canShowVideo = file.type === 'video' && videoSource && !mediaFailed;
 
