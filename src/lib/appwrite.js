@@ -1,14 +1,14 @@
 import { Client, Account, Databases, Query } from "appwrite";
 
 const client = new Client()
-    .setEndpoint("https://fra.cloud.appwrite.io/v1")
-    .setProject("6a12f44400022b5f9881");
+  .setEndpoint("https://nyc.cloud.appwrite.io/v1")
+  .setProject("6a1327e8003d1f1abcdd");
 
 const account = new Account(client);
 const databases = new Databases(client);
 
 // Database configuration
-export const DB_ID = "6a130b11002e8dd45369";
+export const DB_ID = "6a132a68000bbfbaa7e7";
 export const TELEGRAM_CONF_COLLECTION = "telegram_conf";
 export const TELEGRAM_FILE_COLLECTION = "storage";
 const LEGACY_TELEGRAM_FILE_COLLECTION = "storage";
