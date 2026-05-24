@@ -1,4 +1,4 @@
-import { Client, Account, Databases, Query } from "appwrite";
+import { Client, Account, Databases, Query, ID } from "appwrite";
 
 const client = new Client()
   .setEndpoint("https://nyc.cloud.appwrite.io/v1")
@@ -73,7 +73,7 @@ const upsertFileMeta = async (collectionId, payload, fileId, userId) => {
     return await databases.updateDocument(DB_ID, collectionId, existing.documents[0].$id, payload);
   }
 
-  return await databases.createDocument(DB_ID, collectionId, 'unique()', payload);
+  return await databases.createDocument(DB_ID, collectionId, ID.unique(), payload);
 };
 
 // Get Telegram configuration from database
@@ -120,7 +120,7 @@ export const saveTelegramConfig = async (userId, config) => {
       });
     } else {
       // Create new document
-      return await databases.createDocument(DB_ID, TELEGRAM_CONF_COLLECTION, 'unique()', {
+      return await databases.createDocument(DB_ID, TELEGRAM_CONF_COLLECTION, ID.unique(), {
         name: config.name,
         token: config.token,
         chat_id: config.chatId,
