@@ -13,6 +13,7 @@ export const LoginPage = ({ isDark, onLogin, onBack, initialMode = 'signin', onS
   const [error, setError] = useState('');
   const [floatIcons, setFloatIcons] = useState([]);
   const audioRef = useRef(null);
+  const redirectOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
 
   useEffect(() => {
     // Generate floating music icons for the background
@@ -247,7 +248,7 @@ export const LoginPage = ({ isDark, onLogin, onBack, initialMode = 'signin', onS
 
           <motion.button 
             type="button" 
-            onClick={() => account.createOAuth2Session('google', 'http://localhost:3000', 'http://localhost:3000')}
+            onClick={() => account.createOAuth2Session('google', `${redirectOrigin}/dashboard`, `${redirectOrigin}/login`)}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             className={`w-full flex items-center justify-center gap-3 py-3.5 mt-4 rounded-xl text-sm font-semibold transition-all duration-300 shadow-sm hover:shadow-md ${isDark ? 'bg-gray-900 border border-gray-700 text-white hover:bg-gray-800' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}

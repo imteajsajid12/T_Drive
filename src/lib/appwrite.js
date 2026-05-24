@@ -1,16 +1,80 @@
 import { Client, Account, Databases, Query } from "appwrite";
 
 const client = new Client()
-    .setEndpoint("https://sgp.cloud.appwrite.io/v1")
-    .setProject("6a01f378001deb4cb842");
+    .setEndpoint("https://fra.cloud.appwrite.io/v1")
+    .setProject("6a12f44400022b5f9881");
 
 const account = new Account(client);
 const databases = new Databases(client);
 
 // Database configuration
-export const DB_ID = "6a048d110028f98d0213"; // TablesDB
+export const DB_ID = "6a130b11002e8dd45369";
 export const TELEGRAM_CONF_COLLECTION = "telegram_conf";
 export const TELEGRAM_FILE_COLLECTION = "storage";
+const LEGACY_TELEGRAM_FILE_COLLECTION = "storage";
+
+const listFileMetaFromCollections = async (userId) => {
+  const collectionIds = [TELEGRAM_FILE_COLLECTION, LEGACY_TELEGRAM_FILE_COLLECTION];
+  const results = [];
+
+  for (const collectionId of collectionIds) {
+    try {
+      const response = await databases.listDocuments(DB_ID, collectionId, [
+        Query.equal('user_id', String(userId)),
+        Query.limit(1000)
+      ]);
+      results.push(...(response.documents || []));
+    } catch (err) {
+      if (!err.message?.includes('Collection not found')) {
+        console.warn(`⚠️ Could not read Telegram file metadata from ${collectionId}:`, err);
+      }
+    }
+  }
+
+  const seen = new Set();
+  return results.filter((doc) => {
+    if (String(doc.file_id || '').startsWith('local_')) return false;
+    const key = `${doc.user_id || userId}:${doc.file_id || doc.$id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const upsertFileMeta = async (collectionId, payload, fileId, userId) => {
+  let existing;
+
+  try {
+    existing = await databases.listDocuments(DB_ID, collectionId, [
+      Query.equal('file_id', fileId),
+      Query.equal('user_id', String(userId))
+    ]);
+  } catch (queryErr) {
+    if (queryErr.message?.includes('Attribute not found') || queryErr.message?.includes('Index not found')) {
+      console.warn(`⚠️ Missing index/attribute for ${collectionId}. Falling back to file_id only.`);
+      try {
+        existing = await databases.listDocuments(DB_ID, collectionId, [
+          Query.equal('file_id', fileId)
+        ]);
+      } catch (fallbackErr) {
+        if (fallbackErr.message?.includes('Attribute not found') || fallbackErr.message?.includes('Index not found')) {
+          const all = await databases.listDocuments(DB_ID, collectionId, [Query.limit(1000)]);
+          existing = { documents: all.documents.filter((doc) => doc.file_id === fileId) };
+        } else {
+          throw fallbackErr;
+        }
+      }
+    } else {
+      throw queryErr;
+    }
+  }
+
+  if (existing?.documents?.length) {
+    return await databases.updateDocument(DB_ID, collectionId, existing.documents[0].$id, payload);
+  }
+
+  return await databases.createDocument(DB_ID, collectionId, 'unique()', payload);
+};
 
 // Get Telegram configuration from database
 export const getTelegramConfig = async (userId) => {
@@ -73,33 +137,6 @@ export const saveTelegramFileMeta = async ({ messageId, fileId, extension, size,
   try {
     if (!fileId) return null;
 
-    const docId = messageId ? `tg_${messageId}` : `tg_${userId}_${fileId}`;
-    let existing;
-    try {
-      existing = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, [
-        Query.equal('file_id', fileId),
-        Query.equal('user_id', String(userId))
-      ]);
-    } catch (queryErr) {
-      if (queryErr.message?.includes('Attribute not found') || queryErr.message?.includes('Index not found')) {
-        console.warn('⚠️ Missing "user_id" attribute or index. Doing fallback check using just file_id.');
-        try {
-          existing = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, [
-            Query.equal('file_id', fileId) // fallback
-          ]);
-        } catch(fallbackQueryErr) {
-          if (fallbackQueryErr.message?.includes('Attribute not found') || fallbackQueryErr.message?.includes('Index not found')) {
-             const all = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, [Query.limit(1000)]);
-             existing = { documents: all.documents.filter(d => d.file_id === fileId) };
-          } else {
-             throw fallbackQueryErr;
-          }
-        }
-      } else {
-        throw queryErr;
-      }
-    }
-
     const payload = {
       file_id: fileId,
       Extension: extension || '',
@@ -107,11 +144,12 @@ export const saveTelegramFileMeta = async ({ messageId, fileId, extension, size,
       user_id: String(userId)
     };
 
-    if (existing?.documents?.length) {
-      return await databases.updateDocument(DB_ID, TELEGRAM_FILE_COLLECTION, existing.documents[0].$id, payload);
+    try {
+      return await upsertFileMeta(TELEGRAM_FILE_COLLECTION, payload, fileId, userId);
+    } catch (primaryErr) {
+      console.warn(`⚠️ Primary file collection ${TELEGRAM_FILE_COLLECTION} failed, trying legacy collection:`, primaryErr);
+      return await upsertFileMeta(LEGACY_TELEGRAM_FILE_COLLECTION, payload, fileId, userId);
     }
-
-    return await databases.createDocument(DB_ID, TELEGRAM_FILE_COLLECTION, 'unique()', payload);
   } catch (err) {
     console.error('Error saving Telegram file metadata:', err);
     return null;
@@ -120,22 +158,8 @@ export const saveTelegramFileMeta = async ({ messageId, fileId, extension, size,
 
 export const getTelegramFileMetaList = async (userId) => {
   try {
-    const response = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, [
-      Query.equal('user_id', String(userId)),
-      Query.limit(1000)
-    ]);
-    return response.documents || [];
+    return await listFileMetaFromCollections(userId);
   } catch (err) {
-    if (err.message?.includes('Attribute not found') || err.message?.includes('Index not found')) {
-      console.warn('⚠️ Appwrite Index/Attribute error for user_id. Fetching all documents as fallback.');
-      try {
-        const fallback = await databases.listDocuments(DB_ID, TELEGRAM_FILE_COLLECTION, [Query.limit(1000)]);
-        return fallback.documents.filter(doc => doc.user_id === String(userId)) || [];
-      } catch (fallbackErr) {
-        console.error('Fallback fetch failed:', fallbackErr);
-        return [];
-      }
-    }
     console.error('Error loading Telegram file metadata:', err);
     return [];
   }

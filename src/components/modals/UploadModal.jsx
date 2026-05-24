@@ -36,6 +36,21 @@ export const UploadModal = ({ open, close, isDark, onUpload, user }) => {
     return { tgToken, tgChatId };
   };
 
+  const sendTelegramStart = async (tgToken, tgChatId) => {
+    if (!tgToken || !tgChatId) return false;
+
+    const startBody = new FormData();
+    startBody.append('chat_id', tgChatId);
+    startBody.append('text', '/start');
+
+    const response = await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
+      method: 'POST',
+      body: startBody
+    });
+
+    return response.ok;
+  };
+
   const handleFiles = (fs) => {
     fs.forEach(async (f) => {
       const id = Date.now() + Math.random();
@@ -47,15 +62,11 @@ export const UploadModal = ({ open, close, isDark, onUpload, user }) => {
       const isOversizedForTg = f.size > 50 * 1024 * 1024;
 
       if (tgToken && tgChatId && !isOversizedForTg) {
-        // Send /start message first
         try {
-          const startFormData = new FormData();
-          startFormData.append('chat_id', tgChatId);
-          startFormData.append('text', '/start');
-          await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
-            method: 'POST',
-            body: startFormData
-          });
+          const started = await sendTelegramStart(tgToken, tgChatId);
+          if (!started) {
+            console.warn('Telegram /start request was not acknowledged; continuing with file upload.');
+          }
         } catch (err) {
           console.error('Error sending /start message:', err);
         }
@@ -141,7 +152,7 @@ export const UploadModal = ({ open, close, isDark, onUpload, user }) => {
     return parts.length > 1 ? parts.pop().toLowerCase() : '';
   };
 
-  const completeUpload = (f, id, externalUrl = null, tgMsgId = null, returnedChatId = null, tgFileId = null) => {
+  const completeUpload = async (f, id, externalUrl = null, tgMsgId = null, returnedChatId = null, tgFileId = null) => {
     let tp = 'doc';
     if (f.type.startsWith('image')) tp = 'image';
     else if (f.type.startsWith('video')) tp = 'video';
@@ -152,20 +163,24 @@ export const UploadModal = ({ open, close, isDark, onUpload, user }) => {
     // Native blob: URLs are trusted and render flawlessly.
     const fileDataUrl = externalUrl || URL.createObjectURL(f);
     const isTelegramUpload = Boolean(tgFileId);
+    const fileMetaId = tgFileId || `local_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+    try {
+      await saveTelegramFileMeta({
+        messageId: tgMsgId,
+        fileId: fileMetaId,
+        extension: getFileExtension(f.name) || tp,
+        size: normalizeSizeText(f.size),
+        userId: user?.$id || 'default'
+      });
+    } catch (err) {
+      console.error('Failed to save file metadata to Appwrite:', err);
+    }
+
     finalize(fileDataUrl, tp, isTelegramUpload, tgMsgId, returnedChatId, tgFileId);
 
     function finalize(fileData, type, isTelegramUpload, tgMsgId, returnedChatId, fileId) {
       setTimeout(() => {
-        if (isTelegramUpload && fileId) {
-          saveTelegramFileMeta({
-            messageId: tgMsgId,
-            fileId,
-            extension: getFileExtension(f.name) || type,
-            size: normalizeSizeText(f.size),
-            userId: user?.$id || 'default'
-          });
-        }
-
         onUpload({ 
           id: tgMsgId ? `tg_${tgMsgId}` : Date.now(), 
           name: f.name, 
