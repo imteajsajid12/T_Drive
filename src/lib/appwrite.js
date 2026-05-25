@@ -2,13 +2,13 @@ import { Client, Account, Databases, Query, ID } from "appwrite";
 
 const client = new Client()
   .setEndpoint("https://nyc.cloud.appwrite.io/v1")
-  .setProject("6a1327e8003d1f1abcdd");
+  .setProject("6a144a9e003449d7ae43");
 
 const account = new Account(client);
 const databases = new Databases(client);
 
 // Database configuration
-export const DB_ID = "6a132a68000bbfbaa7e7";
+export const DB_ID = "6a144b56001acde432d0";
 export const TELEGRAM_CONF_COLLECTION = "telegram_conf";
 export const TELEGRAM_FILE_COLLECTION = "storage";
 const LEGACY_TELEGRAM_FILE_COLLECTION = "storage";

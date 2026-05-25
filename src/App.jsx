@@ -196,7 +196,13 @@ export default function App() {
         setUser(u);
         setAuth(true);
       } catch (err) {
-        console.warn('No active session found.');
+        console.warn('No active session found.', err);
+        if (err?.message?.toLowerCase().includes('blocked')) {
+          try {
+             localStorage.removeItem('cookieFallback');
+             await account.deleteSession('current').catch(() => {});
+          } catch(e) {}
+        }
         setAuth(false);
       } finally {
         setSessionChecked(true);

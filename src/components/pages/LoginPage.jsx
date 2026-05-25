@@ -8,8 +8,8 @@ export const LoginPage = ({ isDark, onLogin, onBack, initialMode = 'signin', onS
   const [isSignUp, setIsSignUp] = useState(initialMode === 'signup');
   const [isMuted, setIsMuted] = useState(true);
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('admin@tdrive.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [floatIcons, setFloatIcons] = useState([]);
@@ -45,7 +45,16 @@ export const LoginPage = ({ isDark, onLogin, onBack, initialMode = 'signin', onS
       onLogin(); // Tell App.jsx we are logged in
     } catch (err) {
       console.error(err);
-      setError(err.message || (isSignUp ? 'Sign up failed.' : 'Login failed. Please check your credentials.'));
+      if (err.message && err.message.toLowerCase().includes('blocked')) {
+        // Clear local storage and instruct the user to use a different email
+        try {
+          localStorage.removeItem('cookieFallback');
+          await account.deleteSession('current').catch(() => {});
+        } catch (e) {}
+        setError('Your previous account was blocked (likely due to repeated failed logins). We have cleared your stuck session. Please refresh the page and sign up with a NEW email address.');
+      } else {
+        setError(err.message || (isSignUp ? 'Sign up failed.' : 'Login failed. Please check your credentials.'));
+      }
     } finally {
       setLoading(false);
     }
