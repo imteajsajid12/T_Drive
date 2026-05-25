@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
-import { getTelegramConfig, saveTelegramFileMeta } from '../../lib/appwrite';
+import { getTelegramConfig, saveTelegramFileMeta } from '../../lib/supabase';
 import { normalizeSizeText } from '../../utils';
 
 export const UploadModal = ({ open, close, isDark, onUpload, user }) => {

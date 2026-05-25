@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
-import { account } from '../../lib/appwrite';
-import { ID } from 'appwrite';
+import { account } from '../../lib/supabase';
+import { v4 as uuidv4 } from 'uuid';
 
 export const LoginPage = ({ isDark, onLogin, onBack, initialMode = 'signin', onSwitchMode }) => {
   const [isSignUp, setIsSignUp] = useState(initialMode === 'signup');
@@ -38,7 +38,7 @@ export const LoginPage = ({ isDark, onLogin, onBack, initialMode = 'signin', onS
     try {
       if (isSignUp) {
         // Create user using Appwrite
-        await account.create(ID.unique(), email, password, name);
+        await account.create(uuidv4(), email, password, name);
       }
       // Create session using Appwrite (login automatically after signup or execute regular login)
       await account.createEmailPasswordSession(email, password);

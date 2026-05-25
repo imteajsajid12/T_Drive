@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
-import { account, getTelegramConfig, saveTelegramConfig } from '../../lib/appwrite';
+import { account, getTelegramConfig, saveTelegramConfig } from '../../lib/supabase';
 import { toast } from 'sonner';
 
 export const SettingsPage = ({ isDark, user, setUser }) => {
@@ -11,7 +11,7 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaved, setIsSaved] = useState(false);
-  const [configSource, setConfigSource] = useState('local'); // 'appwrite' or 'local'
+  const [configSource, setConfigSource] = useState('local'); // 'supabase' or 'local'
 
   // Dynamic Profile Edit States
   const [fullName, setFullName] = useState(user?.name || '');
@@ -38,17 +38,17 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
       setIsLoading(true);
       try {
         const userId = user?.$id || 'default'; // Use user ID or default
-        const appwriteConfig = await getTelegramConfig(userId);
+        const supabaseConfig = await getTelegramConfig(userId);
         
-        if (appwriteConfig) {
+        if (supabaseConfig) {
           // Load from Appwrite
-          setTgName(appwriteConfig.name || '@imteaj_t_drive_bot');
-          setTgToken(appwriteConfig.token || '');
-          setTgChatId(appwriteConfig.chat_id || '');
-          setConfigSource('appwrite');
-          writeUserStorage('tgBotName', appwriteConfig.name || '', userId);
-          writeUserStorage('tgBotToken', appwriteConfig.token || '', userId);
-          writeUserStorage('tgChatId', appwriteConfig.chat_id || '', userId);
+          setTgName(supabaseConfig.name || '@imteaj_t_drive_bot');
+          setTgToken(supabaseConfig.token || '');
+          setTgChatId(supabaseConfig.chat_id || '');
+          setConfigSource('supabase');
+          writeUserStorage('tgBotName', supabaseConfig.name || '', userId);
+          writeUserStorage('tgBotToken', supabaseConfig.token || '', userId);
+          writeUserStorage('tgChatId', supabaseConfig.chat_id || '', userId);
         } else {
           // Fallback to localStorage
           const savedName = readUserStorage('tgBotName', userId);
@@ -103,7 +103,7 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
       writeUserStorage('tgBotToken', tgToken, userId);
       writeUserStorage('tgChatId', tgChatId, userId);
       
-      setConfigSource('appwrite');
+      setConfigSource('supabase');
       setIsSaved(true);
       toast.success('Telegram configuration saved to Appwrite!');
       setTimeout(() => setIsSaved(false), 2000);
@@ -259,7 +259,7 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
             </span>
             Telegram Bot Integration
           </h2>
-          <span className={`text-[10px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1 ${configSource === 'appwrite' ? (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600') : (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-600')}`}>
+          <span className={`text-[10px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1 ${configSource === 'supabase' ? (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600') : (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-600')}`}>
             {isLoading ? (
               <>
                 <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity }} className="w-3 h-3 border-2 border-current border-t-transparent rounded-full"></motion.div>
@@ -268,7 +268,7 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
             ) : (
               <>
                 <Ic.Check className="w-3 h-3" />
-                {configSource === 'appwrite' ? 'APPWRITE DATABASE' : 'LOCAL STORAGE'}
+                {configSource === 'supabase' ? 'SUPABASE DATABASE' : 'LOCAL STORAGE'}
               </>
             )}
           </span>
