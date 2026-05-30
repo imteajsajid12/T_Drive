@@ -33,15 +33,27 @@ export async function GET(request) {
     }
 
     const headers = new Headers(upstreamResponse.headers);
-    headers.set('X-Content-Type-Options', 'nosniff');
-    headers.set('Cache-Control', 'no-store');
+    headers.set('Cache-Control', download ? 'no-store' : 'public, max-age=3600, stale-while-revalidate=86400');
     
     // Force inline or attachment
     headers.set('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="${sanitizeFileName(parsedUrl.pathname.split('/').pop() || 'download')}"`);
 
-    // Override content type to proper PDF to ensure browsers preview it correctly instead of downloading
-    if (!download && targetUrl.toLowerCase().endsWith('.pdf')) {
-      headers.set('Content-Type', 'application/pdf');
+    // Override content type to proper format to ensure browsers preview it correctly instead of downloading
+    const targetUrlLower = targetUrl.toLowerCase();
+    if (!download) {
+      if (targetUrlLower.endsWith('.pdf')) {
+        headers.set('Content-Type', 'application/pdf');
+      } else if (targetUrlLower.endsWith('.png')) {
+        headers.set('Content-Type', 'image/png');
+      } else if (targetUrlLower.endsWith('.jpg') || targetUrlLower.endsWith('.jpeg')) {
+        headers.set('Content-Type', 'image/jpeg');
+      } else if (targetUrlLower.endsWith('.webp')) {
+        headers.set('Content-Type', 'image/webp');
+      } else if (targetUrlLower.endsWith('.gif')) {
+        headers.set('Content-Type', 'image/gif');
+      } else if (targetUrlLower.endsWith('.mp4')) {
+        headers.set('Content-Type', 'video/mp4');
+      }
     }
 
     return new Response(upstreamResponse.body, {

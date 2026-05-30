@@ -3,15 +3,21 @@ import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
 import { tIcon, tGrad, fmt, getFileIcon } from '../../utils';
 
+const IMAGE_PREVIEW_CACHE = 'tdrive-image-previews-v1';
+
 export const FileCard = ({ file, isGrid, isDark, onPreview, onDelete, idx }) => {
   const TI = getFileIcon(file.name, file.type);
   const [mediaFailed, setMediaFailed] = useState(false);
   const [mediaLoading, setMediaLoading] = useState(false);
+  const [imageProgress, setImageProgress] = useState(null);
+  const [resolvedImageSource, setResolvedImageSource] = useState('');
 
   useEffect(() => {
     setMediaFailed(false);
     const sourceExists = !!(file?.thumb || file?.url);
     setMediaLoading((file?.type === 'image' || file?.type === 'video') && sourceExists);
+    setImageProgress(file?.type === 'image' && sourceExists ? 0 : null);
+    setResolvedImageSource('');
   }, [file?.id]);
 
   const proxify = (url) => {
@@ -23,8 +29,101 @@ export const FileCard = ({ file, isGrid, isDark, onPreview, onDelete, idx }) => 
   };
   const imageSource = proxify(file.thumb || file.url);
   const videoSource = proxify(file.url || file.thumb);
-  const canShowImage = file.type === 'image' && imageSource && !mediaFailed;
+  const displayImageSource = resolvedImageSource;
+  const isImageWithSource = file.type === 'image' && !!imageSource && !mediaFailed;
+  const canShowImage = file.type === 'image' && displayImageSource && !mediaFailed;
   const canShowVideo = file.type === 'video' && videoSource && !mediaFailed;
+
+  useEffect(() => {
+    if (file?.type !== 'image' || !imageSource || typeof window === 'undefined') {
+      return;
+    }
+
+    const controller = new AbortController();
+    let active = true;
+    let objectUrlToCleanup = '';
+
+    const finishWithObjectUrl = (blob) => {
+      objectUrlToCleanup = URL.createObjectURL(blob);
+      if (!active) return;
+      setResolvedImageSource(objectUrlToCleanup);
+      setImageProgress(100);
+      setMediaLoading(false);
+    };
+
+    const loadImage = async () => {
+      try {
+        const supportsCache = typeof caches !== 'undefined';
+        const cacheKey = imageSource;
+
+        if (supportsCache) {
+          const cacheStore = await caches.open(IMAGE_PREVIEW_CACHE);
+          const cachedResponse = await cacheStore.match(cacheKey);
+
+          if (cachedResponse?.ok) {
+            const cachedBlob = await cachedResponse.blob();
+            finishWithObjectUrl(cachedBlob);
+            return;
+          }
+        }
+
+        const response = await fetch(imageSource, { signal: controller.signal });
+        if (!response.ok || !response.body) {
+          throw new Error(`Failed image fetch: ${response.status}`);
+        }
+
+        const totalBytes = Number(response.headers.get('Content-Length') || 0);
+        const reader = response.body.getReader();
+        const chunks = [];
+        let receivedBytes = 0;
+
+        while (active) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            chunks.push(value);
+            receivedBytes += value.length;
+            if (totalBytes > 0) {
+              const nextProgress = Math.min(95, Math.round((receivedBytes / totalBytes) * 100));
+              setImageProgress(nextProgress);
+            } else {
+              setImageProgress((prev) => Math.min(95, Math.max(15, (prev ?? 10) + 3)));
+            }
+          }
+        }
+
+        const blob = new Blob(chunks, {
+          type: response.headers.get('Content-Type') || 'image/*'
+        });
+
+        if (typeof caches !== 'undefined') {
+          const cacheStore = await caches.open(IMAGE_PREVIEW_CACHE);
+          await cacheStore.put(cacheKey, new Response(blob, {
+            headers: {
+              'Content-Type': blob.type
+            }
+          }));
+        }
+
+        finishWithObjectUrl(blob);
+      } catch (error) {
+        if (controller.signal.aborted || !active) return;
+        setResolvedImageSource(imageSource);
+        setMediaLoading(false);
+        setImageProgress(null);
+      }
+    };
+
+    loadImage();
+
+    return () => {
+      active = false;
+      controller.abort();
+      if (objectUrlToCleanup) {
+        URL.revokeObjectURL(objectUrlToCleanup);
+      }
+    };
+  }, [file?.type, imageSource]);
 
   return (
     <motion.div layout initial={{ opacity: 0, y: 25 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.4, delay: idx * 0.04 }} whileHover={{ scale: 1.02, y: -4 }} onClick={() => onPreview(file)} className={`group relative rounded-3xl overflow-hidden cursor-pointer transition-all duration-300 ${isDark ? 'bg-gray-800/40 hover:bg-gray-800/70 border border-gray-700/50 hover:shadow-[0_8px_30px_rgb(0,0,0,0.3)]' : 'bg-white border border-gray-100 shadow-sm hover:shadow-xl'}`}>
@@ -34,24 +133,42 @@ export const FileCard = ({ file, isGrid, isDark, onPreview, onDelete, idx }) => 
       </motion.div>
       {isGrid && (
         <div className="relative h-36 overflow-hidden">
-          {(canShowImage || canShowVideo) && mediaLoading && (
+          {(isImageWithSource || canShowVideo) && mediaLoading && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                className="h-8 w-8 rounded-full border-3 border-white/40 border-t-emerald-400"
-              />
+              {isImageWithSource ? (
+                <div className="w-[78%] max-w-[240px]">
+                  <div className="h-2 rounded-full bg-black/35 overflow-hidden">
+                    <motion.div
+                      initial={{ width: '0%' }}
+                      animate={{ width: `${imageProgress ?? 20}%` }}
+                      transition={{ duration: 0.2, ease: 'easeOut' }}
+                      className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400"
+                    />
+                  </div>
+                  <p className="mt-2 text-center text-[11px] font-medium text-white/90">
+                    Loading {imageProgress != null ? `${imageProgress}%` : '...'}
+                  </p>
+                </div>
+              ) : (
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                  className="h-8 w-8 rounded-full border-3 border-white/40 border-t-emerald-400"
+                />
+              )}
             </div>
           )}
           {canShowImage ? (
             <img
-              src={imageSource}
+              src={displayImageSource}
               alt=""
               onLoad={() => setMediaLoading(false)}
               onError={() => {
                 setMediaFailed(true);
                 setMediaLoading(false);
               }}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
             />
           ) : canShowVideo ? (
@@ -81,24 +198,39 @@ export const FileCard = ({ file, isGrid, isDark, onPreview, onDelete, idx }) => 
       <div className={`relative z-10 p-5 ${!isGrid ? 'flex items-center gap-4' : ''}`}>
         {!isGrid && (
           <div className={`relative w-12 h-12 rounded-2xl ${file.type === 'doc' ? 'bg-gray-100 dark:bg-gray-800' : `bg-gradient-to-br ${tGrad(file.type)} text-white`} flex items-center justify-center flex-shrink-0 shadow-md overflow-hidden`}>
-            {(canShowImage || canShowVideo) && mediaLoading && (
+            {(isImageWithSource || canShowVideo) && mediaLoading && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/25">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  className="h-4 w-4 rounded-full border-2 border-white/50 border-t-emerald-300"
-                />
+                {isImageWithSource ? (
+                  <div className="w-8 h-8 rounded-lg bg-black/40 p-1.5">
+                    <div className="h-full w-full rounded bg-black/20 overflow-hidden">
+                      <motion.div
+                        initial={{ height: '0%' }}
+                        animate={{ height: `${imageProgress ?? 20}%` }}
+                        transition={{ duration: 0.2, ease: 'easeOut' }}
+                        className="w-full bg-emerald-300"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                    className="h-4 w-4 rounded-full border-2 border-white/50 border-t-emerald-300"
+                  />
+                )}
               </div>
             )}
             {canShowImage ? (
               <img
-                src={imageSource}
+                src={displayImageSource}
                 alt=""
                 onLoad={() => setMediaLoading(false)}
                 onError={() => {
                   setMediaFailed(true);
                   setMediaLoading(false);
                 }}
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover"
               />
             ) : canShowVideo ? (

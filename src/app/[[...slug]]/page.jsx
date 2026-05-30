@@ -1,6 +1,6 @@
 export function generateStaticParams() {
   return [
-    { slug: false },
+    { slug: [] },
     { slug: ['dashboard'] },
     { slug: ['dashboard', 'files'] },
     { slug: ['dashboard', 'images'] },

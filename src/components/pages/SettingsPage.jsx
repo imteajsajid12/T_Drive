@@ -14,7 +14,7 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
   const [configSource, setConfigSource] = useState('local'); // 'supabase' or 'local'
 
   // Dynamic Profile Edit States
-  const [fullName, setFullName] = useState(user?.name || '');
+  const [fullName, setFullName] = useState(user?.name || user?.user_metadata?.name || '');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
   // Password Reset States
@@ -29,7 +29,9 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
   const writeUserStorage = (suffix, value, userId = user?.$id || 'guest') => localStorage.setItem(getUserStorageKey(suffix, userId), value);
 
   useEffect(() => {
-    if (user?.name) setFullName(user.name);
+    if (user?.name || user?.user_metadata?.name) {
+      setFullName(user.name || user.user_metadata?.name || '');
+    }
   }, [user]);
 
   useEffect(() => {

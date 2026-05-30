@@ -21,6 +21,20 @@ export const PWARegistration = () => {
   const [dismissIOSHint, setDismissIOSHint] = useState(false);
 
   useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          registrations.forEach((registration) => registration.unregister());
+        }).catch(() => undefined);
+      }
+
+      if ('caches' in window) {
+        caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key)))).catch(() => undefined);
+      }
+
+      return undefined;
+    }
+
     if (!('serviceWorker' in navigator)) return undefined;
 
     navigator.serviceWorker.register('/sw.js').catch((error) => {

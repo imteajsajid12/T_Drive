@@ -2,6 +2,17 @@ import { createClient } from '../utils/supabase/client';
 
 export const supabase = createClient();
 
+const normalizeUser = (user) => {
+  if (!user) return null;
+  const metadata = user.user_metadata || {};
+  return {
+    ...user,
+    $id: user.id,
+    name: user.name || metadata.name || user.email?.split('@')[0] || 'User',
+    user_metadata: metadata,
+  };
+};
+
 export const client = {
   ping: async () => true
 };
@@ -15,7 +26,7 @@ export const account = {
     });
     if (error) throw error;
     if (!data.user) throw new Error("User creation failed");
-    return { ...data.user, $id: data.user.id };
+    return normalizeUser(data.user);
   },
   createEmailPasswordSession: async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -25,7 +36,7 @@ export const account = {
   get: async () => {
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error || !user) throw new Error('User not found');
-    return { ...user, $id: user.id };
+    return normalizeUser(user);
   },
   deleteSession: async (session) => {
     const { error } = await supabase.auth.signOut();
@@ -43,12 +54,12 @@ export const account = {
   updateName: async (name) => {
      const { data, error } = await supabase.auth.updateUser({ data: { name } });
      if (error) throw error;
-     return { ...data.user, $id: data.user.id };
+      return normalizeUser(data.user);
   },
   updatePassword: async (newPassword) => {
      const { data, error } = await supabase.auth.updateUser({ password: newPassword });
      if (error) throw error;
-     return { ...data.user, $id: data.user.id };
+      return normalizeUser(data.user);
   }
 };
 

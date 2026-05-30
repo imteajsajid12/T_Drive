@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Ic } from '../../icons';
 import { tGrad, tIcon, fmt, formatTime, getFileIcon } from '../../utils';
 import Swal from 'sweetalert2';
@@ -23,7 +23,7 @@ const buildProxyUrl = (rawUrl, download = false) => {
   return rawUrl;
 };
 
-export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
+export const MediaPreview = ({ file, items = [], index = 0, isOpen, onClose, isDark, onDelete, onNavigate }) => {
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -45,6 +45,18 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
   const [mediaError, setMediaError] = useState(false);
   const [documentSrc, setDocumentSrc] = useState('');
   const [mediaLoading, setMediaLoading] = useState(true);
+  const [slideDirection, setSlideDirection] = useState(0);
+
+  const galleryItems = (items || []).filter((item) => item && (item.type === 'image' || item.type === 'video'));
+  const currentGalleryIndex = galleryItems.findIndex((item) => item.id === file?.id);
+  const hasGalleryNav = galleryItems.length > 1 && (file?.type === 'image' || file?.type === 'video');
+  const isFullscreenPreview = file?.type === 'image' || file?.type === 'video';
+
+  const goToGalleryIndex = (nextIndex, direction) => {
+    if (!hasGalleryNav || typeof onNavigate !== 'function') return;
+    setSlideDirection(direction);
+    onNavigate((nextIndex + galleryItems.length) % galleryItems.length);
+  };
 
   useEffect(() => {
     if (!isOpen || !file || file.type !== 'doc') {
@@ -72,6 +84,36 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
     setMediaError(false);
     setMediaLoading(true);
   }, [file?.id]);
+
+  useEffect(() => {
+    if (!slideDirection) return undefined;
+
+    const raf = requestAnimationFrame(() => setSlideDirection(0));
+    return () => cancelAnimationFrame(raf);
+  }, [file?.id, slideDirection]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+
+      if (!hasGalleryNav) return;
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        goToGalleryIndex(currentGalleryIndex - 1, -1);
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        goToGalleryIndex(currentGalleryIndex + 1, 1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, hasGalleryNav, currentGalleryIndex]);
 
   useEffect(() => {
     if (file?.type === 'music' && audioRef.current) {
@@ -151,38 +193,70 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
     }
   };
 
+  const previewRootClass = isFullscreenPreview
+    ? 'fixed inset-0 z-50 bg-black/95'
+    : 'fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4';
+
+  const previewPanelClass = isFullscreenPreview
+    ? 'relative w-full h-full overflow-hidden bg-black'
+    : `relative w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl ${isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-gray-200'}`;
+
+  const previewHeaderClass = isFullscreenPreview
+    ? `absolute top-0 left-0 right-0 z-30 flex items-start sm:items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b ${isDark ? 'border-white/10 bg-black/40' : 'border-white/10 bg-black/40'}`
+    : `flex items-start sm:items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`;
+
+  const previewContentClass = isFullscreenPreview ? 'relative w-full h-full pt-28 pb-24 px-4 sm:px-6' : `relative ${file?.type === 'music' ? 'p-8' : ''}`;
+
   if (!isOpen || !file) return null;
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4" onClick={onClose}>
-      <motion.div initial={{ scale: 0.85, y: 40 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.85, y: 40 }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        onClick={(e) => e.stopPropagation()} className={`relative w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl ${isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-gray-200'}`}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className={previewRootClass} onClick={onClose}>
+      <motion.div initial={{ scale: isFullscreenPreview ? 1 : 0.85, y: isFullscreenPreview ? 0 : 40 }} animate={{ scale: 1, y: 0 }} exit={{ scale: isFullscreenPreview ? 1 : 0.85, y: isFullscreenPreview ? 0 : 40 }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        onClick={(e) => e.stopPropagation()} className={previewPanelClass}>
 
         <button
           onClick={onClose}
           aria-label="Close preview"
-          className={`absolute top-3 right-3 z-20 p-2 rounded-xl transition-colors ${isDark ? 'bg-gray-800/90 hover:bg-gray-700 text-gray-300' : 'bg-white/95 hover:bg-gray-100 text-gray-600'} shadow-lg backdrop-blur-sm`}
+          className={`absolute top-3 right-3 z-40 p-2 rounded-xl transition-colors ${isFullscreenPreview ? 'bg-black/55 hover:bg-black/75 text-white' : (isDark ? 'bg-gray-800/90 hover:bg-gray-700 text-gray-300' : 'bg-white/95 hover:bg-gray-100 text-gray-600')} shadow-lg backdrop-blur-sm`}
         >
           <Ic.X />
         </button>
         
         {/* Header */}
-        <div className={`flex items-start sm:items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+        <div className={previewHeaderClass}>
           <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-            <div className={`w-10 h-10 rounded-xl shrink-0 ${file.type === 'doc' ? 'bg-gray-100 dark:bg-gray-800' : `bg-linear-to-br ${tGrad(file.type)} text-white`} flex items-center justify-center shadow-md`}>
+            <div className={`w-10 h-10 rounded-xl shrink-0 ${file.type === 'doc' ? 'bg-gray-100 dark:bg-gray-800' : `bg-linear-to-br ${tGrad(file.type)} text-white`} flex items-center justify-center shadow-md ${isFullscreenPreview ? 'ring-1 ring-white/10' : ''}`}>
               {getFileIcon(file.name, file.type)()}
             </div>
             <div className="min-w-0">
-              <h2 title={file.name} className={`font-bold text-sm wrap-break-word ${isDark ? 'text-white' : 'text-gray-800'}`}>{file.name}</h2>
-              <p className={`text-xs truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{file.size} • {fmt(file.date)}</p>
+              <h2 title={file.name} className={`font-bold text-sm wrap-break-word ${isFullscreenPreview ? 'text-white' : (isDark ? 'text-white' : 'text-gray-800')}`}>{file.name}</h2>
+              <p className={`text-xs truncate ${isFullscreenPreview ? 'text-white/65' : (isDark ? 'text-gray-500' : 'text-gray-400')}`}>{file.size} • {fmt(file.date)}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {hasGalleryNav && (
+              <>
+                <button
+                  onClick={() => goToGalleryIndex(currentGalleryIndex - 1, -1)}
+                  aria-label="Previous media"
+                  className={`p-2 rounded-xl transition-colors ${isFullscreenPreview ? 'bg-black/55 hover:bg-black/75 text-white' : (isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500')}`}
+                >
+                  <Ic.SkipBack />
+                </button>
+                <button
+                  onClick={() => goToGalleryIndex(currentGalleryIndex + 1, 1)}
+                  aria-label="Next media"
+                  className={`p-2 rounded-xl transition-colors ${isFullscreenPreview ? 'bg-black/55 hover:bg-black/75 text-white' : (isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500')}`}
+                >
+                  <Ic.SkipForward />
+                </button>
+              </>
+            )}
             <a
               href={documentDownloadSrc || '#'}
               download={file.name}
               aria-label="Download file"
-              className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'} ${!documentDownloadSrc ? 'pointer-events-none opacity-40' : ''}`}
+              className={`p-2 rounded-xl transition-colors ${isFullscreenPreview ? 'bg-black/55 hover:bg-black/75 text-white' : (isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500')} ${!documentDownloadSrc ? 'pointer-events-none opacity-40' : ''}`}
             >
               <Ic.Download />
             </a>
@@ -190,7 +264,7 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
         </div>
 
         {/* Content */}
-        <div className={`relative ${file.type === 'music' ? 'p-8' : ''}`}>
+        <div className={previewContentClass}>
           {/* AUDIO PLAYER */}
           {file.type === 'music' && (
             <div className="flex flex-col items-center">
@@ -231,70 +305,150 @@ export const MediaPreview = ({ file, isOpen, onClose, isDark, onDelete }) => {
 
           {/* VIDEO PLAYER */}
           {file.type === 'video' && (
-            <div className="relative bg-black rounded-2xl overflow-hidden group">
-                {mediaLoading && !mediaError && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-20 backdrop-blur-sm">
-                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full mb-3" />
-                  </div>
-                )}
-                <video ref={videoRef} src={file.url || file.preview} className="w-full aspect-video object-contain bg-black" onClick={toggleVideoPlay} onTimeUpdate={handleVideoTimeUpdate} onLoadedMetadata={handleVideoLoadedMetadata} onCanPlay={() => setMediaLoading(false)} onEnded={() => setVideoPlaying(false)} onError={() => { setMediaError(true); setMediaLoading(false); }} />
-              {(!file.url && !file.preview) || mediaError && (
+            <motion.div
+              key={file.id}
+              initial={{ x: slideDirection > 0 ? 140 : -140, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: slideDirection > 0 ? -140 : 140, opacity: 0 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className={isFullscreenPreview ? 'relative w-full h-full flex items-center justify-center' : 'relative bg-black rounded-2xl overflow-hidden group'}
+              drag={hasGalleryNav ? 'x' : false}
+              dragConstraints={{ left: 0, right: 0 }}
+              onDragEnd={(_, info) => {
+                if (!hasGalleryNav) return;
+                if (info.offset.x < -80) goToGalleryIndex(currentGalleryIndex + 1, 1);
+                if (info.offset.x > 80) goToGalleryIndex(currentGalleryIndex - 1, -1);
+              }}
+            >
+              {mediaLoading && !mediaError && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-20 backdrop-blur-sm">
+                  <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full mb-3" />
+                  {hasGalleryNav && <p className="text-xs text-white/70">Swipe or use arrow keys</p>}
+                </div>
+              )}
+              <video ref={videoRef} src={file.url || file.preview} className={isFullscreenPreview ? 'w-full h-full object-contain bg-black select-none' : 'w-full aspect-video object-contain bg-black'} onClick={toggleVideoPlay} onTimeUpdate={handleVideoTimeUpdate} onLoadedMetadata={handleVideoLoadedMetadata} onCanPlay={() => setMediaLoading(false)} onEnded={() => setVideoPlaying(false)} onError={() => { setMediaError(true); setMediaLoading(false); }} />
+              {((!file.url && !file.preview) || mediaError) && (
                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <span className="text-white/50 text-sm">Video source unavailable</span>
                  </div>
               )}
-              <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <div onClick={handleVideoProgressClick} className="h-1 rounded-full cursor-pointer mb-3 bg-white/20 hover:h-1.5 transition-all">
-                  <div className="h-full rounded-full bg-emerald-500 relative" style={{ width: videoDuration ? `${(videoTime / videoDuration) * 100}%` : '0%' }}>
-                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white opacity-0 hover:opacity-100 transition-opacity" />
+              {!isFullscreenPreview && (
+                <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div onClick={handleVideoProgressClick} className="h-1 rounded-full cursor-pointer mb-3 bg-white/20 hover:h-1.5 transition-all">
+                    <div className="h-full rounded-full bg-emerald-500 relative" style={{ width: videoDuration ? `${(videoTime / videoDuration) * 100}%` : '0%' }}>
+                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white opacity-0 hover:opacity-100 transition-opacity" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <button onClick={toggleVideoPlay} className="text-white hover:text-emerald-400 transition-colors">
+                        {videoPlaying ? <Ic.Pause /> : <Ic.Play />}
+                      </button>
+                      <span className="text-white text-xs">{formatTime(videoTime)} / {formatTime(videoDuration)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="range" min="0" max="1" step="0.01" value={videoVolume} onChange={(e) => setVideoVolume(parseFloat(e.target.value))} className="w-20 h-1 rounded-full appearance-none cursor-pointer bg-white/20 accent-emerald-500" />
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <button onClick={toggleVideoPlay} className="text-white hover:text-emerald-400 transition-colors">
-                      {videoPlaying ? <Ic.Pause /> : <Ic.Play />}
-                    </button>
-                    <span className="text-white text-xs">{formatTime(videoTime)} / {formatTime(videoDuration)}</span>
+              )}
+              {isFullscreenPreview && (
+                <div className="absolute bottom-0 left-0 right-0 z-20 bg-linear-to-t from-black/80 via-black/30 to-transparent p-4 pointer-events-none">
+                  <div className="flex items-center justify-between pointer-events-auto">
+                    <div className="flex items-center gap-3">
+                      <button onClick={toggleVideoPlay} className="text-white hover:text-emerald-400 transition-colors">
+                        {videoPlaying ? <Ic.Pause /> : <Ic.Play />}
+                      </button>
+                      <span className="text-white text-xs">{formatTime(videoTime)} / {formatTime(videoDuration)}</span>
+                    </div>
+                    {hasGalleryNav && <span className="text-white/60 text-xs">{currentGalleryIndex + 1} / {galleryItems.length}</span>}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input type="range" min="0" max="1" step="0.01" value={videoVolume} onChange={(e) => setVideoVolume(parseFloat(e.target.value))} className="w-20 h-1 rounded-full appearance-none cursor-pointer bg-white/20 accent-emerald-500" />
+                  <div onClick={handleVideoProgressClick} className="pointer-events-auto mt-3 h-1.5 rounded-full cursor-pointer bg-white/20">
+                    <div className="h-full rounded-full bg-emerald-500 relative" style={{ width: videoDuration ? `${(videoTime / videoDuration) * 100}%` : '0%' }}>
+                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              )}
+            </motion.div>
           )}
 
           {/* IMAGE VIEWER */}
           {file.type === 'image' && (
-            <div className="relative bg-black/50 rounded-2xl overflow-hidden flex items-center justify-center" style={{ minHeight: 400 }}>                {mediaLoading && !mediaError && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
-                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full" />
-                  </div>
-                )}              <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
-                <button onClick={handleZoomOut} className="p-2 rounded-xl bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"><Ic.ZoomOut /></button>
-                <span className="px-2 py-1 rounded-lg bg-black/50 text-white text-xs backdrop-blur-sm">{Math.round(zoom * 100)}%</span>
-                <button onClick={handleZoomIn} className="p-2 rounded-xl bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"><Ic.ZoomIn /></button>
-              </div>
+            <motion.div
+              key={file.id}
+              initial={{ x: slideDirection > 0 ? 140 : -140, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: slideDirection > 0 ? -140 : 140, opacity: 0 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className={isFullscreenPreview ? 'relative w-full h-full flex items-center justify-center overflow-hidden' : 'relative bg-black/50 rounded-2xl overflow-hidden flex items-center justify-center'}
+              style={isFullscreenPreview ? { minHeight: 'calc(100vh - 10rem)' } : { minHeight: 400 }}
+              drag={hasGalleryNav ? 'x' : false}
+              dragConstraints={{ left: 0, right: 0 }}
+              onDragEnd={(_, info) => {
+                if (!hasGalleryNav) return;
+                if (info.offset.x < -80) goToGalleryIndex(currentGalleryIndex + 1, 1);
+                if (info.offset.x > 80) goToGalleryIndex(currentGalleryIndex - 1, -1);
+              }}
+            >
+              {mediaLoading && !mediaError && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/40 backdrop-blur-sm">
+                  <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full" />
+                  <p className="mt-3 text-xs text-white/70">Swipe or use arrow keys</p>
+                </div>
+              )}
+              {isFullscreenPreview && (
+                <div className="absolute top-4 right-4 flex items-center gap-2 z-30">
+                  <button onClick={handleZoomOut} className="p-2 rounded-xl bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"><Ic.ZoomOut /></button>
+                  <span className="px-2 py-1 rounded-lg bg-black/50 text-white text-xs backdrop-blur-sm">{Math.round(zoom * 100)}%</span>
+                  <button onClick={handleZoomIn} className="p-2 rounded-xl bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"><Ic.ZoomIn /></button>
+                </div>
+              )}
               <motion.div
-                className="cursor-move"
+                className="cursor-grab active:cursor-grabbing"
                 style={{ transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)` }}
                 onMouseDown={handleImageMouseDown}
                 onMouseMove={handleImageMouseMove}
                 onMouseUp={handleImageMouseUp}
                 onMouseLeave={handleImageMouseUp}
+                drag={hasGalleryNav ? 'x' : false}
+                dragConstraints={{ left: 0, right: 0 }}
+                onDragEnd={(_, info) => {
+                  if (!hasGalleryNav) return;
+                  if (info.offset.x < -80) goToGalleryIndex(currentGalleryIndex + 1, 1);
+                  if (info.offset.x > 80) goToGalleryIndex(currentGalleryIndex - 1, -1);
+                }}
               >
-                {mediaError ? (
-                  <div className="min-h-80 min-w-80 flex items-center justify-center rounded-lg bg-white/5 border border-white/10">
-                    <div className="text-center px-6 py-8">
-                      <div className="text-white/80 text-sm font-semibold">Image unavailable</div>
-                      <div className="text-white/40 text-xs mt-2">The Telegram URL no longer resolves, but the file record is still in your dashboard.</div>
-                    </div>
-                  </div>
-                ) : (
-                  <img src={file.url || file.preview || `https://source.unsplash.com/random/1200x800?${file.name.split('.')[0]}`} onLoad={() => setMediaLoading(false)} onError={() => { setMediaError(true); setMediaLoading(false); }} alt={file.name} className={`max-w-full max-h-[60vh] object-contain rounded-lg transition-opacity duration-300 ${mediaLoading ? 'opacity-0' : 'opacity-100'}`} draggable={false} />
-                )}
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={file.id}
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    transition={{ duration: 0.22 }}
+                    className="flex items-center justify-center"
+                  >
+                    {mediaError ? (
+                      <div className="min-h-80 min-w-80 flex items-center justify-center rounded-lg bg-white/5 border border-white/10">
+                        <div className="text-center px-6 py-8">
+                          <div className="text-white/80 text-sm font-semibold">Image unavailable</div>
+                          <div className="text-white/40 text-xs mt-2">The Telegram URL no longer resolves, but the file record is still in your dashboard.</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <img src={file.url || file.preview || `https://source.unsplash.com/random/1200x800?${file.name.split('.')[0]}`} onLoad={() => setMediaLoading(false)} onError={() => { setMediaError(true); setMediaLoading(false); }} alt={file.name} className={isFullscreenPreview ? `max-w-[92vw] max-h-[76vh] object-contain rounded-2xl transition-opacity duration-300 ${mediaLoading ? 'opacity-0' : 'opacity-100'} shadow-2xl` : `max-w-full max-h-[60vh] object-contain rounded-lg transition-opacity duration-300 ${mediaLoading ? 'opacity-0' : 'opacity-100'}`} draggable={false} />
+                    )}
+                  </motion.div>
+                </AnimatePresence>
               </motion.div>
-            </div>
+              {isFullscreenPreview && hasGalleryNav && (
+                <div className="absolute inset-x-0 bottom-5 flex items-center justify-center gap-3 z-30 pointer-events-none">
+                  <button onClick={() => goToGalleryIndex(currentGalleryIndex - 1, -1)} className="pointer-events-auto px-3 py-2 rounded-full bg-black/50 text-white backdrop-blur-sm text-xs">Prev</button>
+                  <span className="px-3 py-2 rounded-full bg-black/50 text-white backdrop-blur-sm text-xs">{currentGalleryIndex + 1} / {galleryItems.length}</span>
+                  <button onClick={() => goToGalleryIndex(currentGalleryIndex + 1, 1)} className="pointer-events-auto px-3 py-2 rounded-full bg-black/50 text-white backdrop-blur-sm text-xs">Next</button>
+                </div>
+              )}
+            </motion.div>
           )}
 
           {/* DOCUMENT VIEWER */}

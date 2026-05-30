@@ -162,7 +162,7 @@ export default function App() {
     const fileId = doc.file_id;
     const extension = (doc.Extension || '').toLowerCase();
     const type = inferTypeFromExtension(extension);
-    const previewUrl = await resolveTelegramFileUrl(tgToken, fileId);
+    const previewUrl = tgToken ? await resolveTelegramFileUrl(tgToken, fileId) : null;
     const size = normalizeSizeText(doc.size);
     const safeId = doc.$id || fileId;
 
@@ -291,7 +291,6 @@ export default function App() {
 
     const loadTelegramFilesFromDatabase = async () => {
       const { tgToken } = await loadTelegramCredentials();
-      if (!tgToken) return;
 
       const userId = user?.$id || 'default';
       const records = await getTelegramFileMetaList(userId);
@@ -814,11 +813,14 @@ export default function App() {
           onUpload={handleUpload} 
         />
         <MediaPreview 
-          file={preview} 
+          file={preview?.file || null}
+          items={preview?.items || []}
+          index={preview?.index || 0}
           isOpen={!!preview} 
           onClose={() => setPreview(null)} 
           isDark={isDark} 
           onDelete={handleDelete} 
+          onNavigate={(nextIndex) => setPreview((current) => current ? { ...current, file: current.items[nextIndex], index: nextIndex } : current)}
         />
 
       </div>

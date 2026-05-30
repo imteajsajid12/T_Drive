@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Ic } from '../../icons';
 import { chartData } from '../../data';
 import { StatCard } from '../ui/StatCard';
 import { ChartBox } from '../ui/ChartBox';
 import { QuickAction } from '../ui/QuickAction';
 import { FileCard } from '../ui/FileCard';
+import { useRouter } from 'next/navigation';
 
 export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, user }) => {
+  const router = useRouter();
   const [cm, setCm] = useState(null); // context menu file id
   const [isGrid, setIsGrid] = useState(true); // grid or list view state
   const [filterType, setFilterType] = useState('all');
@@ -76,6 +78,15 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
     return data.map(d => ({ ...d, uv: Math.max(10, Math.round(d.uv)) }));
   };
   const dynamicChartData = generateChartData();
+  const dayNameMap = {
+    Mon: 'Monday',
+    Tue: 'Tuesday',
+    Wed: 'Wednesday',
+    Thu: 'Thursday',
+    Fri: 'Friday',
+    Sat: 'Saturday',
+    Sun: 'Sunday'
+  };
 
   const stats = [
     { title: 'Total Files', val: files.length, sub: 'In your drive', color: 'emerald', ic: Ic.FileText },
@@ -93,6 +104,15 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
       return !isNaN(minMB) ? sizeMB >= minMB : true;
     })())
   );
+
+  const sortedByRecent = [...filt].sort((a, b) => {
+    const aTime = new Date(a?.date || 0).getTime();
+    const bTime = new Date(b?.date || 0).getTime();
+    return (isNaN(bTime) ? 0 : bTime) - (isNaN(aTime) ? 0 : aTime);
+  });
+  const isHomeRecent = cat === 'home' && !q;
+  const shownFiles = isHomeRecent ? sortedByRecent.slice(0, 20) : filt;
+  const previewableFiles = shownFiles.filter((file) => file.type === 'image' || file.type === 'video');
 
   const star = (id) => { setFiles(files.map(f => f.id === id ? { ...f, star: !f.star } : f)); setCm(null); };
 
@@ -158,13 +178,13 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
             <h2 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-800'}`}><Ic.Star /> Quick Access</h2>
             <motion.div variants={containerVariants} className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-6">
               {[
-                { ic: Ic.Folder, label: "New Folder", desc: "Create directory", grad: "from-blue-400 to-indigo-500" },
-                { ic: Ic.Upload, label: "Upload", desc: "Any file types", grad: "from-emerald-400 to-teal-500" },
-                { ic: Ic.Share, label: "Shared", desc: "View active links", grad: "from-purple-400 to-pink-500" },
-                { ic: Ic.Trash, label: "Trash", desc: "Deleted files", grad: "from-red-400 to-rose-500" }
+                { ic: Ic.Image, label: "Images", desc: "View all images", grad: "from-emerald-400 to-teal-500", route: "/dashboard/images" },
+                { ic: Ic.Video, label: "Videos", desc: "View all videos", grad: "from-blue-400 to-indigo-500", route: "/dashboard/videos" },
+                { ic: Ic.Music, label: "Music", desc: "View all music", grad: "from-purple-400 to-pink-500", route: "/dashboard/music" },
+                { ic: Ic.Doc, label: "Documents", desc: "View all docs", grad: "from-red-400 to-rose-500", route: "/dashboard/documents" }
               ].map((action, i) => (
                 <motion.div key={i} variants={itemVariants}>
-                  <QuickAction {...action} isDark={isDark} />
+                  <QuickAction {...action} isDark={isDark} onClick={() => router.push(action.route)} />
                 </motion.div>
               ))}
             </motion.div>
@@ -214,12 +234,13 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
             </ChartBox>
             
             <ChartBox label="Activity" isDark={isDark} className="lg:col-span-2">
-              <div className="flex items-center gap-2 mb-4 -mt-2">
-                <span className="text-2xl font-black text-emerald-500">+24%</span>
+              <div className="flex items-center gap-2 mb-3 -mt-1">
+                <span className="text-2xl md:text-3xl font-black text-emerald-500">+24%</span>
                 <span className={`text-xs font-semibold px-2 py-1 rounded-full ${isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>vs last week</span>
               </div>
-              <ResponsiveContainer width="100%" height={260}>
-                <AreaChart data={dynamicChartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+              <p className={`text-xs mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Weekly upload activity by day</p>
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={dynamicChartData} margin={{ top: 8, right: 10, left: -14, bottom: 18 }}>
                   <defs>
                     <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10B981" stopOpacity={0.4}/>
@@ -233,10 +254,24 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
                       </feMerge>
                     </filter>
                   </defs>
-                  <XAxis dataKey="name" hide />
+                  <CartesianGrid vertical={false} stroke={isDark ? 'rgba(148,163,184,0.15)' : 'rgba(100,116,139,0.15)'} strokeDasharray="4 4" />
+                  <YAxis hide domain={[0, 'dataMax + 20']} />
+                  <XAxis
+                    dataKey="name"
+                    tickLine={false}
+                    axisLine={false}
+                    interval="preserveStartEnd"
+                    minTickGap={12}
+                    tickMargin={10}
+                    height={32}
+                    padding={{ left: 12, right: 12 }}
+                    tick={{ fill: isDark ? '#9CA3AF' : '#6B7280', fontSize: 11, fontWeight: 700 }}
+                  />
                   <Tooltip 
                     contentStyle={{ backgroundColor: isDark ? 'rgba(31, 41, 55, 0.9)' : 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(8px)', borderRadius: '16px', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', fontWeight: 'bold' }}
                     itemStyle={{ color: '#10B981' }}
+                    labelFormatter={(label) => dayNameMap[label] || label}
+                    formatter={(value) => [`${value} MB`, 'Uploaded']}
                     cursor={{ stroke: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', strokeWidth: 1, strokeDasharray: '4 4' }}
                   />
                   <Area type="monotone" dataKey="uv" stroke="#10B981" strokeWidth={4} fillOpacity={1} fill="url(#colorUv)" activeDot={{ r: 6, fill: "#10B981", stroke: isDark ? '#1F2937' : '#FFFFFF', strokeWidth: 3 }} filter="url(#glow)" />
@@ -253,7 +288,9 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
             <h2 className={`text-lg font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
               <Ic.Folder /> {q ? 'Search Results' : cat === 'home' ? 'Recent Files' : `${cat.charAt(0).toUpperCase() + cat.slice(1)} Files`}
             </h2>
-            <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{filt.length} files found</p>
+            <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              {shownFiles.length} files shown{isHomeRecent && filt.length > shownFiles.length ? ` of ${filt.length}` : ''}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
@@ -406,10 +443,10 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
           </div>
         </div>
         
-        {filt.length > 0 ? (
+        {shownFiles.length > 0 ? (
             <motion.div variants={containerVariants} className={isGrid ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6" : "flex flex-col gap-3"}>
               <AnimatePresence>
-                {filt.map((f, i) => (
+                {shownFiles.map((f, i) => (
                   <motion.div 
                     key={f.id} 
                     variants={itemVariants}
@@ -418,7 +455,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
                     whileHover={isGrid ? { y: -8, scale: 1.03, zIndex: 10 } : { x: 4, zIndex: 10 }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
-                    <FileCard file={f} isDark={isDark} onPreview={() => openPreview(f)} isGrid={isGrid} idx={i} onDelete={(id) => setFiles(files.filter(file => file.id !== id))} />
+                    <FileCard file={f} isDark={isDark} onPreview={() => openPreview({ file: f, items: previewableFiles, index: previewableFiles.findIndex((item) => item.id === f.id) })} isGrid={isGrid} idx={i} onDelete={(id) => setFiles(files.filter(file => file.id !== id))} />
                   </motion.div>
                 ))}
               </AnimatePresence>
