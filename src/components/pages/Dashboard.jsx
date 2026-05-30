@@ -329,7 +329,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -337,7 +337,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
                   const event = new Event('telegramSyncRequested');
                   window.dispatchEvent(event);
                 }}
-                className="flex justify-center items-center h-10 px-4 rounded-xl font-bold text-xs sm:text-sm bg-[#0088cc] text-white hover:bg-[#0077b5] transition-colors shadow-lg shadow-[#0088cc]/20 gap-2"
+                className="w-full sm:w-auto flex justify-center items-center h-10 px-4 rounded-xl font-bold text-xs sm:text-sm bg-[#0088cc] text-white hover:bg-[#0077b5] transition-colors shadow-lg shadow-[#0088cc]/20 gap-2"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.665 3.717l-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701h-.002l.002.001-.314 4.692c.46 0 .663-.211.921-.46l2.211-2.15 4.599 3.397c.848.467 1.457.227 1.668-.785l3.019-14.228c.309-1.239-.473-1.8-1.282-1.434z"/></svg> Sync New
               </motion.button>
@@ -348,7 +348,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
                   const event = new Event('telegramFullSyncRequested');
                   window.dispatchEvent(event);
                 }}
-                className="flex justify-center items-center h-10 px-4 rounded-xl font-bold text-xs sm:text-sm bg-[#0088cc]/80 text-white hover:bg-[#0077b5] transition-colors shadow-lg shadow-[#0088cc]/20 gap-2"
+                className="w-full sm:w-auto flex justify-center items-center h-10 px-4 rounded-xl font-bold text-xs sm:text-sm bg-[#0088cc]/80 text-white hover:bg-[#0077b5] transition-colors shadow-lg shadow-[#0088cc]/20 gap-2"
                 title="Force full sync - fetches all files from Telegram"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Full Sync
@@ -372,7 +372,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.98 }}
                   transition={{ type: 'spring', damping: 20, stiffness: 200 }}
-                  className={`absolute right-0 top-full mt-2 w-[calc(100vw-1.5rem)] sm:w-80 max-w-[calc(100vw-1.5rem)] sm:max-w-[20rem] rounded-2xl shadow-2xl z-20 overflow-hidden ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}
+                  className={`absolute right-0 top-full mt-2 min-w-[calc(100vw-2rem)] w-[calc(100vw-2rem)] sm:w-80 max-w-[calc(100vw-2rem)] sm:max-w-[20rem] rounded-2xl shadow-2xl z-20 overflow-hidden ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}
                 >
                   <div className={`px-5 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
                     <div className="flex items-center gap-2">
