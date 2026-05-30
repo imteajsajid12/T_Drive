@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Ic } from '../../icons';
@@ -17,6 +17,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
   const [showFilter, setShowFilter] = useState(false);
   const [nameQuery, setNameQuery] = useState(q || '');
   const [minSizeKB, setMinSizeKB] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || 'there';
 
   const computeSize = (sizeStr) => {
@@ -111,8 +112,43 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
     return (isNaN(bTime) ? 0 : bTime) - (isNaN(aTime) ? 0 : aTime);
   });
   const isHomeRecent = cat === 'home' && !q;
-  const shownFiles = isHomeRecent ? sortedByRecent.slice(0, 20) : filt;
+  const PAGE_SIZE = 30;
+  const shownFiles = isHomeRecent ? sortedByRecent : filt;
+  const totalPages = Math.max(1, Math.ceil(shownFiles.length / PAGE_SIZE));
+  const paginatedFiles = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return shownFiles.slice(start, start + PAGE_SIZE);
+  }, [shownFiles, currentPage]);
   const previewableFiles = shownFiles.filter((file) => file.type === 'image' || file.type === 'video');
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [cat, q, filterType, minSizeKB]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
+
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1);
+    }
+
+    const pages = [1];
+    if (currentPage > 3) pages.push('...');
+
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+    for (let page = start; page <= end; page += 1) pages.push(page);
+
+    if (currentPage < totalPages - 2) pages.push('...');
+    pages.push(totalPages);
+    return pages;
+  }, [currentPage, totalPages]);
+
+  const goToPage = useCallback((nextPage) => {
+    setCurrentPage(Math.max(1, Math.min(totalPages, nextPage)));
+  }, [totalPages]);
 
   const star = (id) => { setFiles(files.map(f => f.id === id ? { ...f, star: !f.star } : f)); setCm(null); };
 
@@ -289,7 +325,7 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
               <Ic.Folder /> {q ? 'Search Results' : cat === 'home' ? 'Recent Files' : `${cat.charAt(0).toUpperCase() + cat.slice(1)} Files`}
             </h2>
             <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              {shownFiles.length} files shown{isHomeRecent && filt.length > shownFiles.length ? ` of ${filt.length}` : ''}
+              {shownFiles.length === 0 ? 'No files' : `${Math.min((currentPage - 1) * PAGE_SIZE + 1, shownFiles.length)}-${Math.min(currentPage * PAGE_SIZE, shownFiles.length)} of ${shownFiles.length} files`} {isHomeRecent && filt.length > shownFiles.length ? `(of ${filt.length} total)` : ''}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -444,9 +480,10 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
         </div>
         
         {shownFiles.length > 0 ? (
+            <>
             <motion.div variants={containerVariants} className={isGrid ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6" : "flex flex-col gap-3"}>
-              <AnimatePresence>
-                {shownFiles.map((f, i) => (
+              <AnimatePresence mode="wait" initial={false}>
+                {paginatedFiles.map((f, i) => (
                   <motion.div 
                     key={f.id} 
                     variants={itemVariants}
@@ -460,6 +497,109 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
                 ))}
               </AnimatePresence>
             </motion.div>
+            {totalPages > 1 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+                className={`mt-6 rounded-3xl p-4 sm:p-5 ${isDark ? 'bg-gray-800/40 border border-gray-700/40' : 'bg-white/60 border border-white/60 shadow-sm'} backdrop-blur-xl`}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                  <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Showing <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>{Math.min((currentPage - 1) * PAGE_SIZE + 1, shownFiles.length)}</span> to <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>{Math.min(currentPage * PAGE_SIZE, shownFiles.length)}</span> of <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>{shownFiles.length}</span> files
+                  </p>
+                  <div className={`inline-flex items-center gap-2 self-start sm:self-auto px-3 py-1.5 rounded-full text-[11px] font-bold ${isDark ? 'bg-gray-700/70 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                    <Ic.List />
+                    <span>{PAGE_SIZE} per page</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between gap-2 sm:hidden">
+                    <button
+                      onClick={() => goToPage(currentPage - 1)}
+                      disabled={currentPage <= 1}
+                      className={`px-3 py-2 rounded-xl text-sm font-semibold ${currentPage <= 1 ? 'opacity-40 cursor-not-allowed' : isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700'}`}
+                    >
+                      Prev
+                    </button>
+                    <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>{currentPage} / {totalPages}</span>
+                    <button
+                      onClick={() => goToPage(currentPage + 1)}
+                      disabled={currentPage >= totalPages}
+                      className={`px-3 py-2 rounded-xl text-sm font-semibold ${currentPage >= totalPages ? 'opacity-40 cursor-not-allowed' : isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700'}`}
+                    >
+                      Next
+                    </button>
+                  </div>
+
+                  <div className="hidden sm:flex items-center justify-center gap-1.5 flex-wrap">
+                    <button
+                      onClick={() => goToPage(1)}
+                      disabled={currentPage === 1}
+                      className={`p-2 rounded-xl transition-all ${currentPage === 1 ? 'opacity-30 cursor-not-allowed' : isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-emerald-50 text-gray-400 hover:text-emerald-600'}`}
+                      aria-label="First page"
+                    >
+                      <Ic.ChevronsLeft />
+                    </button>
+                    <button
+                      onClick={() => goToPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className={`p-2 rounded-xl transition-all ${currentPage === 1 ? 'opacity-30 cursor-not-allowed' : isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-emerald-50 text-gray-400 hover:text-emerald-600'}`}
+                      aria-label="Previous page"
+                    >
+                      <Ic.ChevronLeft />
+                    </button>
+
+                    <div className="flex items-center gap-1 mx-1 flex-wrap justify-center">
+                      {pageNumbers.map((page, index) => {
+                        if (page === '...') {
+                          return <span key={`ellipsis-${index}`} className={`px-2 text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>...</span>;
+                        }
+
+                        const isActive = page === currentPage;
+                        return (
+                          <motion.button
+                            key={page}
+                            whileHover={{ scale: isActive ? 1 : 1.06 }}
+                            whileTap={{ scale: 0.94 }}
+                            onClick={() => goToPage(page)}
+                            className={`relative min-w-9 h-9 px-3 rounded-xl text-xs font-bold transition-all ${isActive ? 'bg-linear-to-r from-emerald-500 to-teal-400 text-white shadow-lg shadow-emerald-500/25' : isDark ? 'text-gray-400 hover:bg-gray-700 hover:text-white' : 'text-gray-500 hover:bg-emerald-50 hover:text-emerald-600'}`}
+                          >
+                            {isActive && (
+                              <motion.div
+                                layoutId="activePage"
+                                className="absolute inset-0 bg-linear-to-r from-emerald-500 to-teal-400 rounded-xl"
+                                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                              />
+                            )}
+                            <span className="relative z-10">{page}</span>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      onClick={() => goToPage(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className={`p-2 rounded-xl transition-all ${currentPage === totalPages ? 'opacity-30 cursor-not-allowed' : isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-emerald-50 text-gray-400 hover:text-emerald-600'}`}
+                      aria-label="Next page"
+                    >
+                      <Ic.ChevronRight />
+                    </button>
+                    <button
+                      onClick={() => goToPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      className={`p-2 rounded-xl transition-all ${currentPage === totalPages ? 'opacity-30 cursor-not-allowed' : isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-emerald-50 text-gray-400 hover:text-emerald-600'}`}
+                      aria-label="Last page"
+                    >
+                      <Ic.ChevronsRight />
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+            </>
           ) : (
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className={`p-12 text-center rounded-3xl ${isDark ? 'bg-gray-800/50 border border-gray-700/50' : 'bg-gray-50/50 border border-gray-200 border-dashed'}`}>
               <motion.div animate={{ rotate: [0, -10, 10, -10, 10, 0] }} transition={{ repeat: Infinity, duration: 3, delay: 1 }} className={`w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 ${isDark ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400'}`}><Ic.Search /></motion.div>

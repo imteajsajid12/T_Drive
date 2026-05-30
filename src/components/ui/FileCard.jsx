@@ -5,7 +5,7 @@ import { tIcon, tGrad, fmt, getFileIcon } from '../../utils';
 
 const IMAGE_PREVIEW_CACHE = 'tdrive-image-previews-v1';
 
-export const FileCard = ({ file, isGrid, isDark, onPreview, onDelete, idx }) => {
+const FileCardComponent = ({ file, isGrid, isDark, onPreview, onDelete, idx }) => {
   const TI = getFileIcon(file.name, file.type);
   const [mediaFailed, setMediaFailed] = useState(false);
   const [mediaLoading, setMediaLoading] = useState(false);
@@ -269,3 +269,5 @@ export const FileCard = ({ file, isGrid, isDark, onPreview, onDelete, idx }) => 
     </motion.div>
   );
 };
+
+export const FileCard = React.memo(FileCardComponent);

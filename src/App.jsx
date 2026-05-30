@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { ThemeContext } from './contexts';
 import { initialFiles } from './data';
 import { Sidebar } from './components/layout/Sidebar';
@@ -33,6 +33,7 @@ export default function App() {
   const [files, setFiles] = useState(initialFiles);
   const filesRef = useRef(files);
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const pathname = usePathname();
   const normalizedPathname = pathname?.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
 
@@ -69,9 +70,19 @@ export default function App() {
   const handleSetCat = (nextCat) => {
     const target = catToRoute[nextCat] || '/dashboard';
     if (normalizedPathname !== target) {
-      router.push(target);
+      startTransition(() => {
+        router.push(target, { scroll: false });
+      });
     }
   };
+
+  useEffect(() => {
+    const routesToWarm = ['/dashboard', '/dashboard/files', '/dashboard/images', '/dashboard/videos', '/dashboard/music', '/dashboard/documents', '/analytics', '/settings'];
+
+    routesToWarm.forEach((route) => {
+      router.prefetch(route);
+    });
+  }, [router]);
 
   useEffect(() => {
     filesRef.current = files;
