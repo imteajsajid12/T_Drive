@@ -4,7 +4,7 @@ import { Ic } from '../../icons';
 import { getTelegramConfig, saveTelegramFileMeta } from '../../lib/supabase';
 import { normalizeSizeText } from '../../utils';
 
-export const UploadModal = ({ open, close, isDark, onUpload, user }) => {
+export const UploadModal = ({ open, close, isDark, onUpload, user, disabled = false, onConfigureTelegram }) => {
   const [drag, setDrag] = useState(false);
   const [progress, setProgress] = useState({});
   const ref = useRef(null);
@@ -222,12 +222,32 @@ export const UploadModal = ({ open, close, isDark, onUpload, user }) => {
           <button onClick={close} className={`p-2 rounded-xl ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}><Ic.X /></button>
         </div>
         <div className="p-6">
+          {disabled ? (
+            <div className={`rounded-2xl border px-5 py-6 text-center ${isDark ? 'bg-amber-500/10 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
+              <div className={`w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-4 ${isDark ? 'bg-amber-400/20 text-amber-300' : 'bg-amber-100 text-amber-600'}`}>
+                <Ic.AlertTriangle />
+              </div>
+              <h3 className={`text-base font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>Telegram is not configured</h3>
+              <p className={`text-sm mb-4 ${isDark ? 'text-amber-100/80' : 'text-gray-600'}`}>
+                Connect your Telegram bot in Settings before uploading files to the dashboard.
+              </p>
+              <div className="flex items-center justify-center gap-3">
+                <button onClick={close} className={`px-4 py-2 rounded-xl text-sm font-bold ${isDark ? 'bg-gray-700 text-white' : 'bg-white text-gray-700 border border-gray-200'}`}>
+                  Close
+                </button>
+                <button onClick={() => { close(); onConfigureTelegram && onConfigureTelegram(); }} className="px-4 py-2 rounded-xl text-sm font-bold bg-[#0088cc] text-white">
+                  Open Settings
+                </button>
+              </div>
+            </div>
+          ) : (
           <div onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={drop} onClick={() => ref.current?.click()} className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${drag ? 'border-emerald-500 bg-emerald-500/10' : isDark ? 'border-gray-600/50 hover:border-emerald-400/50' : 'border-gray-300 hover:border-emerald-400'}`}>
             <motion.div animate={drag ? { scale: [1, 1.2, 1] } : {}} transition={{ repeat: drag ? Infinity : 0, duration: 1 }} className={`w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 ${drag ? 'bg-emerald-500 text-white' : isDark ? 'bg-gray-700 text-gray-400' : 'bg-emerald-100 text-emerald-500'}`}><Ic.Upload /></motion.div>
             <p className={`font-semibold ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{drag ? 'Drop files here' : 'Drag & drop files'}</p>
             <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>or click to browse</p>
             <input ref={ref} type="file" multiple onChange={pick} className="hidden" />
           </div>
+          )}
           {Object.keys(progress).length > 0 && (
             <div className="mt-5 space-y-3">
               {Object.entries(progress).map(([id, item]) => (

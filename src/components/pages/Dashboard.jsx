@@ -9,7 +9,20 @@ import { QuickAction } from '../ui/QuickAction';
 import { FileCard } from '../ui/FileCard';
 import { useRouter } from 'next/navigation';
 
-export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, user }) => {
+export const Dashboard = ({
+  isDark,
+  files,
+  setFiles,
+  cat,
+  q,
+  setQ,
+  openPreview,
+  user,
+  telegramReady = true,
+  telegramConfigChecked = true,
+  telegramConfigLoading = false,
+  onConfigureTelegram
+}) => {
   const router = useRouter();
   const [cm, setCm] = useState(null); // context menu file id
   const [isGrid, setIsGrid] = useState(true); // grid or list view state
@@ -151,6 +164,8 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
   }, [totalPages]);
 
   const star = (id) => { setFiles(files.map(f => f.id === id ? { ...f, star: !f.star } : f)); setCm(null); };
+  const telegramLocked = !telegramReady;
+  const telegramActionsDisabled = telegramConfigLoading || telegramLocked;
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -172,6 +187,38 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
       variants={containerVariants}
       className="px-4 py-4 md:px-8 md:py-8 w-full space-y-8 max-w-480 mx-auto overflow-hidden"
     >
+      {telegramConfigChecked && telegramLocked && (
+        <motion.div
+          variants={itemVariants}
+          className={`rounded-3xl border px-5 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between ${isDark ? 'bg-amber-500/10 border-amber-500/20 text-amber-100' : 'bg-amber-50 border-amber-200 text-amber-900'}`}
+        >
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 font-bold text-sm">
+              <Ic.AlertTriangle /> Telegram is not set up yet
+            </div>
+            <p className={`text-xs ${isDark ? 'text-amber-100/80' : 'text-amber-800'}`}>
+              Upload is disabled until you connect a Telegram bot in Settings.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onConfigureTelegram}
+            className={`inline-flex items-center justify-center h-10 px-4 rounded-xl text-xs font-bold transition-colors ${isDark ? 'bg-amber-400 text-gray-900 hover:bg-amber-300' : 'bg-amber-600 text-white hover:bg-amber-700'}`}
+          >
+            Go to Settings
+          </button>
+        </motion.div>
+      )}
+      {telegramConfigLoading && (
+        <motion.div
+          variants={itemVariants}
+          className={`rounded-3xl border px-5 py-4 flex items-center gap-3 ${isDark ? 'bg-gray-800/80 border-gray-700 text-gray-200' : 'bg-white border-gray-100 text-gray-700'}`}
+        >
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }} className="w-4 h-4 border-2 border-current border-t-transparent rounded-full" />
+          <p className="text-sm font-medium">Checking Telegram configuration...</p>
+        </motion.div>
+      )}
+
       {/* Header & Stats */}
       {cat === 'home' && (
         <motion.div variants={itemVariants} className="space-y-8">
@@ -334,10 +381,12 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
+                  if (telegramActionsDisabled) return;
                   const event = new Event('telegramSyncRequested');
                   window.dispatchEvent(event);
                 }}
-                className="w-full sm:w-auto flex justify-center items-center h-10 px-4 rounded-xl font-bold text-xs sm:text-sm bg-[#0088cc] text-white hover:bg-[#0077b5] transition-colors shadow-lg shadow-[#0088cc]/20 gap-2"
+                disabled={telegramActionsDisabled}
+                className={`w-full sm:w-auto flex justify-center items-center h-10 px-4 rounded-xl font-bold text-xs sm:text-sm transition-colors shadow-lg gap-2 ${telegramActionsDisabled ? 'bg-[#0088cc]/40 text-white/70 cursor-not-allowed shadow-[#0088cc]/10' : 'bg-[#0088cc] text-white hover:bg-[#0077b5] shadow-[#0088cc]/20'}`}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.665 3.717l-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701h-.002l.002.001-.314 4.692c.46 0 .663-.211.921-.46l2.211-2.15 4.599 3.397c.848.467 1.457.227 1.668-.785l3.019-14.228c.309-1.239-.473-1.8-1.282-1.434z"/></svg> Sync New
               </motion.button>
@@ -345,10 +394,12 @@ export const Dashboard = ({ isDark, files, setFiles, cat, q, setQ, openPreview, 
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
+                  if (telegramActionsDisabled) return;
                   const event = new Event('telegramFullSyncRequested');
                   window.dispatchEvent(event);
                 }}
-                className="w-full sm:w-auto flex justify-center items-center h-10 px-4 rounded-xl font-bold text-xs sm:text-sm bg-[#0088cc]/80 text-white hover:bg-[#0077b5] transition-colors shadow-lg shadow-[#0088cc]/20 gap-2"
+                disabled={telegramActionsDisabled}
+                className={`w-full sm:w-auto flex justify-center items-center h-10 px-4 rounded-xl font-bold text-xs sm:text-sm transition-colors shadow-lg gap-2 ${telegramActionsDisabled ? 'bg-[#0088cc]/30 text-white/60 cursor-not-allowed shadow-[#0088cc]/10' : 'bg-[#0088cc]/80 text-white hover:bg-[#0077b5] shadow-[#0088cc]/20'}`}
                 title="Force full sync - fetches all files from Telegram"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Full Sync

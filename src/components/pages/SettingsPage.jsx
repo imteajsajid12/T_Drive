@@ -5,9 +5,9 @@ import { account, getTelegramConfig, saveTelegramConfig } from '../../lib/supaba
 import { toast } from 'sonner';
 
 export const SettingsPage = ({ isDark, user, setUser }) => {
-  const [tgName, setTgName] = useState('@imteaj_t_drive_bot');
-  const [tgToken, setTgToken] = useState('8721702939:AAGtDcMWdQPZYxrWGuCBvZ27UTbs4eBzH_E');
-  const [tgChatId, setTgChatId] = useState('790875483');
+  const [tgName, setTgName] = useState('@t-drive_bot');
+  const [tgToken, setTgToken] = useState('');
+  const [tgChatId, setTgChatId] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaved, setIsSaved] = useState(false);

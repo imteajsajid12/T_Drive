@@ -31,6 +31,7 @@ export default function App() {
   const [mob, setMob] = useState(false);
   const [q, setQ] = useState('');
   const [files, setFiles] = useState(initialFiles);
+  const [telegramConfigState, setTelegramConfigState] = useState({ checked: false, ready: false, loading: false });
   const filesRef = useRef(files);
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -108,6 +109,41 @@ export default function App() {
 
     return { tgToken, tgChatId };
   };
+
+  useEffect(() => {
+    if (!auth) {
+      setTelegramConfigState({ checked: false, ready: false, loading: false });
+      return;
+    }
+
+    let cancelled = false;
+
+    const checkTelegramConfig = async () => {
+      setTelegramConfigState({ checked: false, ready: false, loading: true });
+
+      try {
+        const { tgToken, tgChatId } = await loadTelegramCredentials();
+        if (cancelled) return;
+
+        setTelegramConfigState({
+          checked: true,
+          ready: Boolean(tgToken && tgChatId),
+          loading: false
+        });
+      } catch (err) {
+        console.warn('Unable to verify Telegram config state:', err);
+        if (!cancelled) {
+          setTelegramConfigState({ checked: true, ready: false, loading: false });
+        }
+      }
+    };
+
+    checkTelegramConfig();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [auth, user?.$id]);
 
   const resolveTelegramFileUrl = async (tgToken, tgFileId) => {
     if (!tgToken || !tgFileId) return null;
@@ -570,6 +606,15 @@ export default function App() {
     setFiles(prev => [newFile, ...prev]);
   };
 
+  const handleOpenUpload = () => {
+    if (!telegramConfigState.ready) {
+      toast.error('Set up your Telegram bot in Settings before uploading.');
+      return;
+    }
+
+    setUpOpen(true);
+  };
+
   const handleDelete = (id) => {
     const file = files.find(f => f.id === id);
     if (!file) return;
@@ -778,12 +823,14 @@ export default function App() {
             isDark={isDark} 
             toggle={() => setIsDark(!isDark)} 
             onMenu={() => setMob(true)} 
-            onUp={() => setUpOpen(true)} 
+            onUp={handleOpenUpload} 
             q={q} 
             setQ={setQ} 
             user={{ name: user?.name || 'User', email: user?.email || 'user@example.com' }} 
             setCat={handleSetCat}
             onLogout={handleLogout} 
+            telegramReady={telegramConfigState.ready}
+            telegramConfigLoading={telegramConfigState.loading}
           />
 
           {/* Page Routing/Content */}
@@ -801,6 +848,10 @@ export default function App() {
                 q={q} 
                 setQ={setQ}
                 user={user}
+                telegramReady={telegramConfigState.ready}
+                telegramConfigChecked={telegramConfigState.checked}
+                telegramConfigLoading={telegramConfigState.loading}
+                onConfigureTelegram={() => handleSetCat('settings')}
                 openPreview={(f) => setPreview(f)} 
               />
             )}
@@ -811,8 +862,10 @@ export default function App() {
         <MobNav 
           cat={activeCat} 
           setCat={handleSetCat} 
-          onUp={() => setUpOpen(true)} 
+          onUp={handleOpenUpload} 
           isDark={isDark} 
+          telegramReady={telegramConfigState.ready}
+          telegramConfigLoading={telegramConfigState.loading}
         />
 
         {/* Modals */}
@@ -822,6 +875,8 @@ export default function App() {
           isDark={isDark}
           user={user} 
           onUpload={handleUpload} 
+          disabled={telegramConfigState.loading || !telegramConfigState.ready}
+          onConfigureTelegram={() => handleSetCat('settings')}
         />
         <MediaPreview 
           file={preview?.file || null}

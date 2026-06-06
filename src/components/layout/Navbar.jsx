@@ -2,12 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Ic } from '../../icons';
 
-export const Navbar = ({ isDark, toggle, onMenu, onUp, q, setQ, user, onLogout, setCat }) => {
+export const Navbar = ({ isDark, toggle, onMenu, onUp, q, setQ, user, onLogout, setCat, telegramReady = true, telegramConfigLoading = false }) => {
   const [sf, setSf] = useState(false);
   const [um, setUm] = useState(false);
   const ref = useRef(null);
   const displayName = user?.name?.trim() || 'User';
   const avatarInitial = displayName.slice(0, 1).toUpperCase();
+  const uploadDisabled = telegramConfigLoading || !telegramReady;
   
   useEffect(() => { 
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setUm(false); }; 
@@ -25,7 +26,12 @@ export const Navbar = ({ isDark, toggle, onMenu, onUp, q, setQ, user, onLogout, 
         </div>
         <div className="flex flex-wrap items-center gap-2 justify-end min-w-0">
           <button onClick={toggle} className={`p-2.5 rounded-xl ${isDark ? 'bg-gray-700/60 text-emerald-400' : 'bg-emerald-100/60 text-emerald-600'}`}>{isDark ? <Ic.Sun /> : <Ic.Moon />}</button>
-          <button onClick={onUp} className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-linear-to-r from-emerald-500 to-teal-400 text-white font-bold text-sm shadow-lg shadow-emerald-500/20"><Ic.Upload /> Upload</button>
+          <button
+            onClick={onUp}
+            disabled={uploadDisabled}
+            title={uploadDisabled ? 'Set up Telegram in Settings first' : 'Upload files'}
+            className={`hidden md:flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold shadow-lg transition-colors ${uploadDisabled ? 'bg-gray-400/40 text-white/70 shadow-gray-400/10 cursor-not-allowed' : 'bg-linear-to-r from-emerald-500 to-teal-400 text-white shadow-emerald-500/20'}`}
+          ><Ic.Upload /> Upload</button>
           <div className="relative shrink-0" ref={ref}>
             <button onClick={() => setUm(!um)} className={`w-9 h-9 rounded-2xl overflow-hidden border-2 ${isDark ? 'border-emerald-500/30' : 'border-emerald-400/30'} shadow-md bg-linear-to-br from-emerald-500 to-teal-400 flex items-center justify-center`}>
               <span className="text-xs font-black text-white">{avatarInitial}</span>
