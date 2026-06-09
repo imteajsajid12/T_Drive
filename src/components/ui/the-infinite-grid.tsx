@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { 
   motion, 
   useMotionValue, 
+  useSpring,
   useTransform, 
   useMotionTemplate, 
   useAnimationFrame 
@@ -94,6 +95,30 @@ export const Component = () => {
 export const InfiniteGridBackdrop = ({ className = "", dark = false }: { className?: string; dark?: boolean }) => {
   const gridOffsetX = useMotionValue(0);
   const gridOffsetY = useMotionValue(0);
+  const pointerX = useMotionValue(50);
+  const pointerY = useMotionValue(30);
+  const cursorX = useSpring(pointerX, { stiffness: 120, damping: 24, mass: 0.6 });
+  const cursorY = useSpring(pointerY, { stiffness: 120, damping: 24, mass: 0.6 });
+  const spotlight = useMotionTemplate`radial-gradient(28% 22% at ${cursorX}% ${cursorY}%, ${dark ? 'rgba(16,185,129,0.22)' : 'rgba(16,185,129,0.18)'}, transparent 70%)`;
+
+  useEffect(() => {
+    const handleMove = (event: MouseEvent) => {
+      pointerX.set((event.clientX / window.innerWidth) * 100);
+      pointerY.set((event.clientY / window.innerHeight) * 100);
+    };
+
+    const handleLeave = () => {
+      pointerX.set(50);
+      pointerY.set(30);
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseleave', handleLeave);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseleave', handleLeave);
+    };
+  }, [pointerX, pointerY]);
 
   useAnimationFrame(() => {
     const currentX = gridOffsetX.get();
@@ -125,8 +150,13 @@ export const InfiniteGridBackdrop = ({ className = "", dark = false }: { classNa
         <GridPattern offsetX={gridOffsetX} offsetY={gridOffsetY} />
       </motion.div>
 
+      <motion.div
+        className="absolute inset-0 mix-blend-screen opacity-70"
+        style={{ backgroundImage: spotlight }}
+      />
+
       <div className="absolute inset-0">
-        <div className="absolute right-[-15%] top-[-15%] h-[36%] w-[36%] rounded-full bg-orange-400/25 blur-[120px]" />
+        <div className="absolute right-[-15%] top-[-15%] h-[36%] w-[36%] rounded-full bg-emerald-400/25 blur-[120px]" />
         <div className="absolute left-[-10%] bottom-[-18%] h-[38%] w-[38%] rounded-full bg-cyan-400/20 blur-[120px]" />
         <div className="absolute left-[20%] top-[12%] h-[18%] w-[18%] rounded-full bg-emerald-500/15 blur-[90px]" />
       </div>
