@@ -4,6 +4,7 @@ import { ParticleField, GradientOrbs, GridBackground, FloatFileIcons } from '../
 import { Navbar, Hero, Features } from '../landing/LandingSections1';
 import { BotCreator, Pricing, FAQ, CTA, Footer } from '../landing/LandingSections2';
 import { Ic } from '../landing/LandingIcons';
+import { InfiniteGridBackdrop } from '../ui/the-infinite-grid';
 
 export const LandingPage = ({ onLoginClick, isAuthed = false, user, onDashboardClick, onProfileClick, onLogout }) => {
   const [dark, setDark] = useState(false);
@@ -44,18 +45,21 @@ export const LandingPage = ({ onLoginClick, isAuthed = false, user, onDashboardC
 
   return (
     <div className={`${dark ? 'bg-gray-950 text-white' : 'bg-gradient-to-b from-emerald-50/50 via-white to-teal-50/30 text-gray-900'} min-h-screen transition-colors duration-500 relative isolate`}>
+      <InfiniteGridBackdrop dark={dark} className="z-0" />
       {showBg && <ParticleField dark={dark} />}
       {showBg && <GradientOrbs />}
       {showBg && <GridBackground dark={dark} />}
       {showBg && <FloatFileIcons />}
-      <Navbar dark={dark} onLoginClick={onLoginClick} isAuthed={isAuthed} user={user} onDashboardClick={onDashboardClick} onProfileClick={onProfileClick} onLogout={onLogout} />
-      <Hero dark={dark} />
-      <Features dark={dark} />
-      <BotCreator dark={dark} />
-      <Pricing dark={dark} />
-      <FAQ dark={dark} />
-      <CTA dark={dark} onLoginClick={onLoginClick} />
-      <Footer dark={dark} />
+      <div className="relative z-10">
+        <Navbar dark={dark} onLoginClick={onLoginClick} isAuthed={isAuthed} user={user} onDashboardClick={onDashboardClick} onProfileClick={onProfileClick} onLogout={onLogout} />
+        <Hero dark={dark} />
+        <Features dark={dark} />
+        <BotCreator dark={dark} />
+        <Pricing dark={dark} />
+        <FAQ dark={dark} />
+        <CTA dark={dark} onLoginClick={onLoginClick} />
+        <Footer dark={dark} />
+      </div>
 
       <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setDark(!dark)}
         className={`fixed bottom-6 right-6 z-50 w-12 h-12 rounded-2xl flex items-center justify-center shadow-xl transition-all ${dark ? 'bg-gray-800 text-yellow-400 border border-gray-700' : 'bg-white text-gray-700 border border-gray-200'}`}>

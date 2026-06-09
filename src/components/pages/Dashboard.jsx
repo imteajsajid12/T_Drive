@@ -7,6 +7,7 @@ import { StatCard } from '../ui/StatCard';
 import { ChartBox } from '../ui/ChartBox';
 import { QuickAction } from '../ui/QuickAction';
 import { FileCard } from '../ui/FileCard';
+import { InfiniteGridBackdrop } from '../ui/the-infinite-grid';
 import { useRouter } from 'next/navigation';
 
 export const Dashboard = ({
@@ -185,8 +186,9 @@ export const Dashboard = ({
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      className="px-4 py-4 md:px-8 md:py-8 w-full space-y-8 max-w-480 mx-auto overflow-hidden"
+      className="relative px-4 py-4 md:px-8 md:py-8 w-full space-y-8 max-w-480 mx-auto overflow-hidden"
     >
+      <InfiniteGridBackdrop dark={isDark} className="z-0" />
       {telegramConfigChecked && telegramLocked && (
         <motion.div
           variants={itemVariants}
@@ -221,7 +223,7 @@ export const Dashboard = ({
 
       {/* Header & Stats */}
       {cat === 'home' && (
-        <motion.div variants={itemVariants} className="space-y-8">
+        <motion.div variants={itemVariants} className="relative z-10 space-y-8">
           <div>
             <motion.h1 
               initial={{ opacity: 0, x: -20 }}
@@ -254,7 +256,7 @@ export const Dashboard = ({
       )}
 
       {/* Main Content Grid */}
-      <div className="flex flex-col space-y-8">
+      <div className="relative z-10 flex flex-col space-y-8">
         {/* Quick Actions (Home only) */}
         {cat === 'home' && !q && (
           <motion.div variants={itemVariants}>

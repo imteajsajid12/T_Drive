@@ -1,6 +1,7 @@
+import DemoOne from "@/components/ui/demo";
+
 export function generateStaticParams() {
   return [
-    { slug: [] },
     { slug: ['dashboard'] },
     { slug: ['dashboard', 'files'] },
     { slug: ['dashboard', 'images'] },
@@ -15,5 +16,5 @@ export function generateStaticParams() {
 }
 
 export default function CatchAllPage() {
-  return null;
+  return <DemoOne />;
 }
