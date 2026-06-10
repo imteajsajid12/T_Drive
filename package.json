@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev --webpack --hostname 0.0.0.0",
+    "test": "vitest",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -30,6 +31,11 @@
     "autoprefixer": "^10.5.0",
     "postcss": "^8.5.14",
     "tailwindcss": "^4.3.0",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "vitest": "^0.34.0",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/user-event": "^14.4.3",
+    "jsdom": "^22.2.0"
   }
 }

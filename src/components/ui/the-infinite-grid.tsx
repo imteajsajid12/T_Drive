@@ -6,7 +6,6 @@ import {
   motion, 
   useMotionValue, 
   useSpring,
-  useTransform, 
   useMotionTemplate, 
   useAnimationFrame 
 } from "framer-motion";
@@ -97,9 +96,9 @@ export const InfiniteGridBackdrop = ({ className = "", dark = false }: { classNa
   const gridOffsetY = useMotionValue(0);
   const pointerX = useMotionValue(50);
   const pointerY = useMotionValue(30);
-  const cursorX = useSpring(pointerX, { stiffness: 120, damping: 24, mass: 0.6 });
-  const cursorY = useSpring(pointerY, { stiffness: 120, damping: 24, mass: 0.6 });
-  const spotlight = useMotionTemplate`radial-gradient(28% 22% at ${cursorX}% ${cursorY}%, ${dark ? 'rgba(16,185,129,0.22)' : 'rgba(16,185,129,0.18)'}, transparent 70%)`;
+  const cursorX = useSpring(pointerX, { stiffness: 72, damping: 34, mass: 0.85 });
+  const cursorY = useSpring(pointerY, { stiffness: 72, damping: 34, mass: 0.85 });
+  const spotlight = useMotionTemplate`radial-gradient(34% 28% at ${cursorX}% ${cursorY}%, ${dark ? 'rgba(167,243,208,0.14)' : 'rgba(167,243,208,0.11)'}, transparent 78%)`;
 
   useEffect(() => {
     const handleMove = (event: MouseEvent) => {
@@ -123,8 +122,8 @@ export const InfiniteGridBackdrop = ({ className = "", dark = false }: { classNa
   useAnimationFrame(() => {
     const currentX = gridOffsetX.get();
     const currentY = gridOffsetY.get();
-    gridOffsetX.set((currentX + 0.35) % 40);
-    gridOffsetY.set((currentY + 0.35) % 40);
+    gridOffsetX.set((currentX + 0.18) % 40);
+    gridOffsetY.set((currentY + 0.18) % 40);
   });
 
   return (
@@ -141,7 +140,7 @@ export const InfiniteGridBackdrop = ({ className = "", dark = false }: { classNa
       </div>
 
       <motion.div
-        className="absolute inset-0 opacity-20"
+        className="absolute inset-0 opacity-14"
         style={{
           maskImage: "radial-gradient(55% 45% at 50% 30%, black, transparent)",
           WebkitMaskImage: "radial-gradient(55% 45% at 50% 30%, black, transparent)",
@@ -151,14 +150,14 @@ export const InfiniteGridBackdrop = ({ className = "", dark = false }: { classNa
       </motion.div>
 
       <motion.div
-        className="absolute inset-0 mix-blend-screen opacity-70"
+        className="absolute inset-0 mix-blend-soft-light opacity-45"
         style={{ backgroundImage: spotlight }}
       />
 
       <div className="absolute inset-0">
-        <div className="absolute right-[-15%] top-[-15%] h-[36%] w-[36%] rounded-full bg-emerald-400/25 blur-[120px]" />
-        <div className="absolute left-[-10%] bottom-[-18%] h-[38%] w-[38%] rounded-full bg-cyan-400/20 blur-[120px]" />
-        <div className="absolute left-[20%] top-[12%] h-[18%] w-[18%] rounded-full bg-emerald-500/15 blur-[90px]" />
+        <div className="absolute right-[-15%] top-[-15%] h-[40%] w-[40%] rounded-full bg-emerald-300/14 blur-[150px]" />
+        <div className="absolute left-[-10%] bottom-[-18%] h-[40%] w-[40%] rounded-full bg-teal-200/12 blur-[150px]" />
+        <div className="absolute left-[20%] top-[12%] h-[20%] w-[20%] rounded-full bg-green-200/10 blur-[120px]" />
       </div>
     </div>
   );

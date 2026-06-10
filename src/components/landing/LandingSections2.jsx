@@ -561,6 +561,11 @@ export const BotCreator = ({ dark }) => {
     };
   }, [autoPlay, activeStep, steps.length]);
 
+  // Auto‑play when component mounts
+  useEffect(() => {
+    startAutoPlay();
+  }, []);
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e) => {
