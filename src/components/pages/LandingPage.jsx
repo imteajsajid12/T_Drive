@@ -5,6 +5,7 @@ import { Navbar, Hero, Features } from '../landing/LandingSections1';
 import { BotCreator, Pricing, FAQ, CTA, Footer } from '../landing/LandingSections2';
 import { Ic } from '../landing/LandingIcons';
 import { InfiniteGridBackdrop } from '../ui/the-infinite-grid';
+import { Apk } from '../landing/Apk'; 
 
 export const LandingPage = ({ onLoginClick, isAuthed = false, user, onDashboardClick, onProfileClick, onLogout }) => {
   const [dark, setDark] = useState(false);
@@ -54,11 +55,13 @@ export const LandingPage = ({ onLoginClick, isAuthed = false, user, onDashboardC
         <Navbar dark={dark} onLoginClick={onLoginClick} isAuthed={isAuthed} user={user} onDashboardClick={onDashboardClick} onProfileClick={onProfileClick} onLogout={onLogout} />
         <Hero dark={dark} />
         <Features dark={dark} />
+          <Apk dark={dark} /> 
         <BotCreator dark={dark} />
         <Pricing dark={dark} />
         <FAQ dark={dark} />
         <CTA dark={dark} onLoginClick={onLoginClick} />
         <Footer dark={dark} />
+        
       </div>
 
       <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setDark(!dark)}
@@ -66,5 +69,7 @@ export const LandingPage = ({ onLoginClick, isAuthed = false, user, onDashboardC
         {dark ? <Ic.Sun /> : <Ic.Moon />}
       </motion.button>
     </div>
+   
+
   );
 };
