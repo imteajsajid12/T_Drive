@@ -126,7 +126,7 @@ export const Dashboard = ({
     return (isNaN(bTime) ? 0 : bTime) - (isNaN(aTime) ? 0 : aTime);
   });
   const isHomeRecent = cat === 'home' && !q;
-  const PAGE_SIZE = 30;
+  const PAGE_SIZE = 24;
   const shownFiles = isHomeRecent ? sortedByRecent : filt;
   const totalPages = Math.max(1, Math.ceil(shownFiles.length / PAGE_SIZE));
   const paginatedFiles = useMemo(() => {
