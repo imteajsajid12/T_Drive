@@ -896,7 +896,23 @@ export const CTA = ({ dark, onLoginClick }) => (
   </section>
 );
 
+// ====== APP DOWNLOAD COMPONENT ======
+const AppDownload = ({ dark }) => (
+  <section className={`py-12 sm:py-16 ${dark ? 'bg-gray-900' : 'bg-gray-100'}`}>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
+      <h2 className="text-2xl font-bold mb-4">Download Our App</h2>
+      <p className="mb-6">Get T‑Drive on iOS and Android.</p>
+      <div className="flex justify-center gap-4">
+        <a href="#" className="px-5 py-2 bg-black text-white rounded">App Store</a>
+        <a href="#" className="px-5 py-2 bg-green-600 text-white rounded">Google Play</a>
+      </div>
+    </div>
+  </section>
+);
+
 // ====== FOOTER ======
+export { AppDownload };
+
 export const Footer = ({ dark }) => (
   <footer className={`py-12 sm:py-16 border-t ${dark ? 'border-gray-800' : 'border-gray-200'}`}>
     <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center">
