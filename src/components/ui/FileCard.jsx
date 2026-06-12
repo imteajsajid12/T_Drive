@@ -12,7 +12,7 @@ const isTouchDevice =
   typeof window !== 'undefined' &&
   window.matchMedia('(hover: none)').matches;
 
-const FileCardComponent = ({ file, isGrid, isDark, onPreview, onDelete, idx, isSelected = false, onToggleSelect }) => {
+const FileCardComponent = ({ file, isGrid, isDark, onPreview, onDelete, idx, isSelected = false, onToggleSelect, isSelectMode = false }) => {
   const TI = getFileIcon(file.name, file.type);
 
   const [mediaFailed, setMediaFailed]               = useState(false);
@@ -427,8 +427,10 @@ const FileCardComponent = ({ file, isGrid, isDark, onPreview, onDelete, idx, isS
             : 'bg-white border border-gray-100 shadow-sm hover:shadow-xl'}
       `}
       onClick={(e) => {
-        // If multi-select is active (parent passes onToggleSelect), clicking the card toggles selection
-        if (onToggleSelect) {
+        // In select-mode (at least one card already selected) → card body toggles selection.
+        // Otherwise → open preview as normal. The checkbox button always handles selection
+        // independently regardless of mode, so the first selection is always via the checkbox.
+        if (isSelectMode) {
           handleToggleSelect(e);
         } else {
           onPreview(file);

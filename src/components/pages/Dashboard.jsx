@@ -704,7 +704,7 @@ export const Dashboard = ({
                     exit={{ opacity: 0, scale: 0.8, filter: "blur(5px)" }} 
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
-                    <FileCard file={f} isDark={isDark} onPreview={() => openPreview({ file: f, items: previewableFiles, index: previewableFiles.findIndex((item) => item.id === f.id) })} isGrid={isGrid} idx={i} onDelete={onDelete} isSelected={selectedIds.has(f.id)} onToggleSelect={toggleSelectFile} />
+                    <FileCard file={f} isDark={isDark} onPreview={() => openPreview({ file: f, items: previewableFiles, index: previewableFiles.findIndex((item) => item.id === f.id) })} isGrid={isGrid} idx={i} onDelete={onDelete} isSelected={selectedIds.has(f.id)} onToggleSelect={toggleSelectFile} isSelectMode={isSelectMode} />
                   </motion.div>
                 ))}
               </AnimatePresence>
