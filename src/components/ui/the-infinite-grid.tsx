@@ -100,25 +100,30 @@ export const InfiniteGridBackdrop = ({ className = "", dark = false }: { classNa
   const cursorY = useSpring(pointerY, { stiffness: 72, damping: 34, mass: 0.85 });
   const spotlight = useMotionTemplate`radial-gradient(34% 28% at ${cursorX}% ${cursorY}%, ${dark ? 'rgba(167,243,208,0.14)' : 'rgba(167,243,208,0.11)'}, transparent 78%)`;
 
+  // Mouse spotlight tracking — only meaningful on pointer devices
+  const isPointerDevice = typeof window !== 'undefined' && window.matchMedia?.('(pointer: fine)').matches;
+
   useEffect(() => {
+    if (!isPointerDevice) return;
+
     const handleMove = (event: MouseEvent) => {
       pointerX.set((event.clientX / window.innerWidth) * 100);
       pointerY.set((event.clientY / window.innerHeight) * 100);
     };
-
     const handleLeave = () => {
       pointerX.set(50);
       pointerY.set(30);
     };
 
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseleave', handleLeave);
+    window.addEventListener('mousemove', handleMove, { passive: true });
+    window.addEventListener('mouseleave', handleLeave, { passive: true });
     return () => {
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseleave', handleLeave);
     };
-  }, [pointerX, pointerY]);
+  }, [pointerX, pointerY, isPointerDevice]);
 
+  // Scrolling grid — runs on all devices, willChange:transform keeps it on GPU
   useAnimationFrame(() => {
     const currentX = gridOffsetX.get();
     const currentY = gridOffsetY.get();
@@ -135,25 +140,30 @@ export const InfiniteGridBackdrop = ({ className = "", dark = false }: { classNa
         className
       )}
     >
-      <div className="absolute inset-0 opacity-[0.06]">
+      {/* Base grid — very subtle, always visible */}
+      <div className="absolute inset-0 opacity-[0.06]" style={{ willChange: 'transform' }}>
         <GridPattern offsetX={gridOffsetX} offsetY={gridOffsetY} />
       </div>
 
+      {/* Masked center-fade layer */}
       <motion.div
-        className="absolute inset-0 opacity-14"
+        className="absolute inset-0 opacity-[0.14]"
         style={{
           maskImage: "radial-gradient(55% 45% at 50% 30%, black, transparent)",
           WebkitMaskImage: "radial-gradient(55% 45% at 50% 30%, black, transparent)",
+          willChange: 'transform',
         }}
       >
         <GridPattern offsetX={gridOffsetX} offsetY={gridOffsetY} />
       </motion.div>
 
+      {/* Mouse spotlight — renders on all devices but only moves on pointer devices */}
       <motion.div
         className="absolute inset-0 mix-blend-soft-light opacity-45"
         style={{ backgroundImage: spotlight }}
       />
 
+      {/* Ambient glow orbs */}
       <div className="absolute inset-0">
         <div className="absolute right-[-15%] top-[-15%] h-[40%] w-[40%] rounded-full bg-emerald-300/14 blur-[150px]" />
         <div className="absolute left-[-10%] bottom-[-18%] h-[40%] w-[40%] rounded-full bg-teal-200/12 blur-[150px]" />

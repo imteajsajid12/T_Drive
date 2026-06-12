@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
 import { Ic } from './LandingIcons';
 import { FloatFileIcons } from './LandingBackgrounds';
@@ -10,11 +10,20 @@ const tGrad = (type) => tGradMap[type] || 'from-gray-400 to-gray-500';
 const tIcon = (type) => tIconMap[type] || Ic.Doc;
 
 // ====== ANIMATED SECTION WRAPPER ======
+// Uses a smaller trigger margin on mobile to avoid triggering too early / layout jank
 export const SectionWrapper = ({ children, className = '' }) => {
   const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: '-100px' });
+  // '-60px' on mobile is gentler on layout recalc vs the default '-100px'
+  const isInView = useInView(ref, { once: true, margin: '-60px' });
   return (
-    <motion.div ref={ref} initial={{ opacity: 0, y: 40 }} animate={isInView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.8, ease: [0.22, 0.61, 0.36, 1] }} className={className}>
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 30 }}
+      animate={isInView ? { opacity: 1, y: 0 } : {}}
+      // Shorter duration and simpler easing reduces animation frame budget
+      transition={{ duration: 0.6, ease: [0.22, 0.61, 0.36, 1] }}
+      className={className}
+    >
       {children}
     </motion.div>
   );
@@ -27,8 +36,9 @@ export const Navbar = ({ dark, onLoginClick, isAuthed = false, user, onDashboard
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
   useEffect(() => {
+    // passive:true prevents scroll blocking on mobile
     const h = () => setScrolled(window.scrollY > 50);
-    window.addEventListener('scroll', h);
+    window.addEventListener('scroll', h, { passive: true });
     return () => window.removeEventListener('scroll', h);
   }, []);
   useEffect(() => {
@@ -126,7 +136,7 @@ export const Hero = ({ dark }) => {
 
   return (
     <section className="relative min-h-screen flex items-center pt-20 overflow-hidden">
-      <FloatFileIcons />
+      {/* FloatFileIcons rendered via LandingPage's showBg layer — no double render here */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-8 lg:gap-12 items-center relative z-10">
         <motion.div initial={{ opacity: 0, x: -40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8 }}>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
@@ -169,27 +179,30 @@ export const Hero = ({ dark }) => {
                 { name: 'photo_2024.jpg', type: 'image', size: '4.2 MB', progress: 100 },
                 { name: 'project.pdf', type: 'doc', size: '12 MB', progress: 65 },
                 { name: 'meeting.mp4', type: 'video', size: '156 MB', progress: 30 },
-              ].map((f, i) => (
-                <motion.div key={i} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 + i * 0.2 }}
-                  onMouseEnter={() => setHoveredCard(i)} onMouseLeave={() => setHoveredCard(null)}
-                  className={`p-3 sm:p-4 rounded-2xl transition-all cursor-pointer ${dark ? 'bg-gray-700/50 border border-gray-600/30 hover:border-emerald-500/50' : 'bg-gray-50 border border-gray-100 hover:border-emerald-300'} ${hoveredCard === i ? 'shadow-lg' : ''}`}>
-                  <div className="flex items-center justify-between mb-2 sm:mb-3">
-                    <div className="flex items-center gap-2 sm:gap-3">
-                      <motion.div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br ${tGrad(f.type)} text-white flex items-center justify-center`} whileHover={{ scale: 1.1, rotate: 5 }}>
-                        {React.createElement(tIcon(f.type))}
-                      </motion.div>
-                      <div>
-                        <p className={`font-semibold text-xs sm:text-sm ${dark ? 'text-white' : 'text-gray-800'}`}>{f.name}</p>
-                        <p className={`text-[10px] sm:text-xs ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{f.size}</p>
+              ].map((f, i) => {
+                const FileIcon = tIcon(f.type);
+                return (
+                  <motion.div key={i} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 + i * 0.2 }}
+                    onMouseEnter={() => setHoveredCard(i)} onMouseLeave={() => setHoveredCard(null)}
+                    className={`p-3 sm:p-4 rounded-2xl transition-all cursor-pointer ${dark ? 'bg-gray-700/50 border border-gray-600/30 hover:border-emerald-500/50' : 'bg-gray-50 border border-gray-100 hover:border-emerald-300'} ${hoveredCard === i ? 'shadow-lg' : ''}`}>
+                    <div className="flex items-center justify-between mb-2 sm:mb-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <motion.div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br ${tGrad(f.type)} text-white flex items-center justify-center`} whileHover={{ scale: 1.1, rotate: 5 }}>
+                          <FileIcon />
+                        </motion.div>
+                        <div>
+                          <p className={`font-semibold text-xs sm:text-sm ${dark ? 'text-white' : 'text-gray-800'}`}>{f.name}</p>
+                          <p className={`text-[10px] sm:text-xs ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{f.size}</p>
+                        </div>
                       </div>
+                      {f.progress === 100 && <span className="text-emerald-500"><Ic.Check /></span>}
                     </div>
-                    {f.progress === 100 && <span className="text-emerald-500"><Ic.Check /></span>}
-                  </div>
-                  <div className={`h-1.5 sm:h-2 rounded-full overflow-hidden ${dark ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                    <motion.div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400" initial={{ width: 0 }} animate={{ width: `${f.progress}%` }} transition={{ duration: 1.5, delay: 0.8 + i * 0.3 }} />
-                  </div>
-                </motion.div>
-              ))}
+                    <div className={`h-1.5 sm:h-2 rounded-full overflow-hidden ${dark ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                      <motion.div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400" initial={{ width: 0 }} animate={{ width: `${f.progress}%` }} transition={{ duration: 1.5, delay: 0.8 + i * 0.3 }} />
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
             <div className="grid grid-cols-3 gap-3 sm:gap-4 mt-4 sm:mt-6">
               {[{ label: 'Stored', value: '2.4 GB' }, { label: 'Files', value: '1,247' }, { label: 'Shared', value: '89' }].map((s, i) => (
@@ -200,8 +213,12 @@ export const Hero = ({ dark }) => {
               ))}
             </div>
           </motion.div>
-          <motion.div className="absolute -bottom-4 sm:-bottom-6 -left-4 sm:-left-6 px-4 sm:px-5 py-2 sm:py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white shadow-xl shadow-emerald-500/30 flex items-center gap-2"
-            animate={{ y: [0, -10, 0] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}>
+          <motion.div
+            className="absolute -bottom-4 sm:-bottom-6 -left-4 sm:-left-6 px-4 sm:px-5 py-2 sm:py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white shadow-xl shadow-emerald-500/30 flex items-center gap-2"
+            style={{ willChange: 'transform' }}
+            animate={{ y: [0, -10, 0] }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+          >
             <Ic.Shield /> <span className="text-xs sm:text-sm font-medium">End-to-end encrypted</span>
           </motion.div>
         </div>

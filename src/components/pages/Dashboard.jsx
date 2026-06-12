@@ -18,6 +18,7 @@ export const Dashboard = ({
   q,
   setQ,
   openPreview,
+  onDelete,
   user,
   telegramReady = true,
   telegramConfigChecked = true,
@@ -542,10 +543,9 @@ export const Dashboard = ({
                     variants={itemVariants}
                     layout 
                     exit={{ opacity: 0, scale: 0.8, filter: "blur(5px)" }} 
-                    whileHover={isGrid ? { y: -8, scale: 1.03, zIndex: 10 } : { x: 4, zIndex: 10 }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
-                    <FileCard file={f} isDark={isDark} onPreview={() => openPreview({ file: f, items: previewableFiles, index: previewableFiles.findIndex((item) => item.id === f.id) })} isGrid={isGrid} idx={i} onDelete={(id) => setFiles(files.filter(file => file.id !== id))} />
+                    <FileCard file={f} isDark={isDark} onPreview={() => openPreview({ file: f, items: previewableFiles, index: previewableFiles.findIndex((item) => item.id === f.id) })} isGrid={isGrid} idx={i} onDelete={onDelete} />
                   </motion.div>
                 ))}
               </AnimatePresence>

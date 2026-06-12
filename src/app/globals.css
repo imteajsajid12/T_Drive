@@ -83,4 +83,26 @@
   body {
     margin: 0;
   }
+
+  /* ── Smooth scroll performance ─────────────────────────────────────────────
+     iOS Safari momentum scrolling + prevent scroll-blocking on touch devices.
+     `scroll-behavior: smooth` only for anchor navigation; we keep inertia
+     scrolling native so the browser can run it off the main thread.          */
+  html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prevent subpixel aliasing on animated elements */
+  .motion-safe * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Fixed background layers get their own GPU layer — keeps scroll compositor
+     from having to repaint them on every frame.                               */
+  .pointer-events-none.fixed {
+    will-change: transform;
+    transform: translateZ(0);
+  }
 }

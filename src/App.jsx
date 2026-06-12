@@ -13,7 +13,7 @@ import { Dashboard } from './components/pages/Dashboard';
 import { LoginPage } from './components/pages/LoginPage';
 import { LandingPage } from './components/pages/LandingPage';
 import { BackgroundBlobs } from './components/ui/Utils';
-import { account, client, getTelegramConfig, getTelegramFileMetaList, saveTelegramFileMeta } from './lib/supabase';
+import { account, client, getTelegramConfig, getTelegramFileMetaList, saveTelegramFileMeta, deleteTelegramFileMeta } from './lib/supabase';
 import { createClient } from './utils/supabase/client';
 const supabase = createClient();
 import { normalizeSizeText } from './utils';
@@ -615,145 +615,187 @@ export default function App() {
     setUpOpen(true);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     const file = files.find(f => f.id === id);
     if (!file) return;
 
-    // Check if file exists on Telegram
-    const hasTgMessageId = file.tgMessageId || (String(file.id).startsWith('tg_') ? String(file.id).split('_')[1] : null);
+    const isTelegramFile = file.source === 'telegram' || String(file.id).startsWith('tg_');
 
-    // If file exists on Telegram, confirm deletion and delete from both places
-    if (hasTgMessageId) {
-      // SweetAlert2 confirmation for Telegram files
-      Swal.fire({
-        title: `Delete "${file.name}"?`,
-        text: 'This will permanently remove the file from both Telegram and your dashboard.',
-        icon: 'warning',
-        iconColor: '#ef4444',
-        showCancelButton: true,
-        confirmButtonColor: '#ef4444',
-        cancelButtonColor: '#6b7280',
-        confirmButtonText: 'Yes, delete all!',
-        cancelButtonText: 'Cancel',
-        reverseButtons: true,
-        customClass: {
-          confirmButton: 'px-6 py-3 rounded-xl font-bold text-white transition-all hover:scale-105',
-          cancelButton: 'px-6 py-3 rounded-xl font-bold text-gray-300 transition-all hover:scale-105',
-          title: 'text-xl font-bold',
-          text: 'text-gray-300'
-        }
-      }).then(async (result) => {
-        if (result.isConfirmed) {
-          try {
-            const { tgToken, tgChatId } = await loadTelegramCredentials();
-            const effectiveChatId = file.tgChatId || tgChatId;
+    // Resolve the Telegram message ID as a proper integer.
+    // Priority: file.tgMessageId → parse from file.id (tg_<msgId>) → null
+    let tgMsgIdInt = null;
+    if (file.tgMessageId) {
+      const parsed = parseInt(file.tgMessageId, 10);
+      if (!isNaN(parsed)) tgMsgIdInt = parsed;
+    }
+    if (tgMsgIdInt === null && String(file.id).startsWith('tg_')) {
+      const parsed = parseInt(String(file.id).replace('tg_', ''), 10);
+      if (!isNaN(parsed)) tgMsgIdInt = parsed;
+    }
 
-            if (!tgToken || !effectiveChatId) {
-              throw new Error('Telegram configuration is missing');
-            }
+    // The Telegram file_id used as the key in the Supabase `storage` table
+    const supabaseFileId = file.tgFileId || file.telegramKey || null;
 
-            // Delete from Telegram first
-            const tgRes = await fetch(`https://api.telegram.org/bot${tgToken}/deleteMessage`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                chat_id: effectiveChatId,
-                message_id: hasTgMessageId 
-              })
-            });
-            const tgData = await tgRes.json();
-            
-            if (!tgData.ok) {
+    // ── Confirmation dialog ─────────────────────────────────────
+    const confirmText = isTelegramFile
+      ? 'This will permanently remove the file from Telegram, Supabase, and your dashboard.'
+      : 'This will permanently remove the file from your dashboard.';
+
+    const { isConfirmed } = await Swal.fire({
+      title: `Delete "${file.name}"?`,
+      text: confirmText,
+      icon: 'warning',
+      iconColor: '#ef4444',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel',
+      reverseButtons: true,
+      background: isDark ? '#1e293b' : '#ffffff',
+      color: isDark ? '#f1f5f9' : '#1e293b',
+      customClass: {
+        popup: 'rounded-3xl shadow-2xl',
+        confirmButton: 'px-6 py-2.5 rounded-xl font-bold text-white transition-all',
+        cancelButton: 'px-6 py-2.5 rounded-xl font-bold transition-all',
+      },
+    });
+
+    if (!isConfirmed) return;
+
+    // ── Show loading state ──────────────────────────────────────
+    Swal.fire({
+      title: 'Deleting…',
+      text: 'Please wait while we remove the file.',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      background: isDark ? '#1e293b' : '#ffffff',
+      color: isDark ? '#f1f5f9' : '#1e293b',
+      didOpen: () => Swal.showLoading(),
+    });
+
+    const errors = [];
+
+    // ── Step 1: Delete from Telegram ────────────────────────────
+    if (isTelegramFile && tgMsgIdInt !== null) {
+      try {
+        const { tgToken, tgChatId } = await loadTelegramCredentials();
+        // file.tgChatId is most reliable — fallback to config chat id
+        const effectiveChatId = file.tgChatId || tgChatId;
+
+        if (!tgToken || !effectiveChatId) {
+          errors.push('Telegram credentials missing — could not delete from Telegram.');
+        } else {
+          const tgRes = await fetch(`https://api.telegram.org/bot${tgToken}/deleteMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: effectiveChatId,
+              message_id: tgMsgIdInt,   // integer — required by Telegram API
+            }),
+          });
+          const tgData = await tgRes.json();
+
+          if (!tgData.ok) {
+            // Treat "already deleted" and "too old to delete" as non-fatal — still clean up locally
+            const desc = (tgData.description || '').toLowerCase();
+            const isAlreadyGone = desc.includes('message to delete not found');
+            const isTooOld = desc.includes("can't be deleted for everyone") || desc.includes('message_id_invalid');
+
+            if (isAlreadyGone || isTooOld) {
+              console.warn(`Telegram: ${tgData.description} — treating as soft error, proceeding with local cleanup.`);
+              // Surface a note to the user but don't block the delete
+              errors.push(`Telegram note: ${tgData.description} (file will still be removed locally and from Supabase).`);
+            } else {
+              errors.push(`Telegram: ${tgData.description || 'Unknown error'}`);
               console.error('Telegram deletion failed:', tgData.description);
-              Swal.fire({
-                title: 'Deletion Failed',
-                text: `Failed to delete from Telegram: ${tgData.description || 'Unknown error'}`,
-                icon: 'error',
-                iconColor: '#ef4444',
-                confirmButtonColor: '#ef4444',
-                confirmButtonText: 'OK',
-                customClass: {
-                  confirmButton: 'px-6 py-3 rounded-xl font-bold text-white',
-                  title: 'text-xl font-bold',
-                  text: 'text-gray-300'
-                }
-              });
-              return; // Don't delete from local if Telegram deletion failed
             }
-
-            // Now delete from local state
-            setFiles(prev => prev.filter(f => f.id !== id));
-            
-            // Success message
-            Swal.fire({
-              title: 'Deleted!',
-              text: 'File deleted from Telegram and device.',
-              icon: 'success',
-              iconColor: '#10b981',
-              confirmButtonColor: '#10b981',
-              confirmButtonText: 'OK',
-              customClass: {
-                confirmButton: 'px-6 py-3 rounded-xl font-bold text-white',
-                title: 'text-xl font-bold',
-                text: 'text-gray-300'
-              }
-            });
-          } catch (err) {
-            console.error('Error deleting from Telegram:', err);
-            Swal.fire({
-              title: 'Error',
-              text: 'Failed to delete from Telegram. File may still exist there.',
-              icon: 'error',
-              iconColor: '#ef4444',
-              confirmButtonColor: '#ef4444',
-              confirmButtonText: 'OK',
-              customClass: {
-                confirmButton: 'px-6 py-3 rounded-xl font-bold text-white',
-                title: 'text-xl font-bold',
-                text: 'text-gray-300'
-              }
-            });
           }
         }
+      } catch (err) {
+        errors.push('Network error while deleting from Telegram.');
+        console.error('Telegram delete error:', err);
+      }
+    }
+
+    // ── Step 2: Delete from Supabase `storage` table ───────────
+    if (supabaseFileId && user?.$id) {
+      const deleted = await deleteTelegramFileMeta(supabaseFileId, user.$id);
+      if (!deleted) {
+        errors.push('Supabase: could not remove file metadata row.');
+      }
+    }
+
+    // ── Step 3: Remove from local state + localStorage ─────────
+    // Always remove from local state regardless of upstream errors —
+    // if Telegram/Supabase had issues we already logged them above.
+    setFiles(prev => {
+      const next = prev.filter(f => f.id !== id);
+      if (user?.$id) {
+        try {
+          writeUserStorage('tDriveFiles', JSON.stringify(next), user.$id);
+        } catch (e) {
+          const lightFiles = next.map(({ url, ...rest }) => rest);
+          writeUserStorage('tDriveFiles', JSON.stringify(lightFiles), user.$id);
+        }
+      }
+      return next;
+    });
+
+    // ── Step 4: Close the preview modal if this file was open ──
+    setPreview(current => {
+      if (!current) return null;
+      if (current.file?.id === id) return null;
+      return current;
+    });
+
+    // ── Step 5: Show result ─────────────────────────────────────
+    // Separate soft notes (too-old Telegram messages) from hard errors (real failures)
+    const softNotes = errors.filter(e => e.startsWith('Telegram note:'));
+    const hardErrors = errors.filter(e => !e.startsWith('Telegram note:'));
+
+    if (hardErrors.length === 0) {
+      // Full success — or only soft Telegram notes (message too old / already gone)
+      const extraNote = softNotes.length > 0
+        ? '\n\nNote: The Telegram message was too old to delete remotely, but it has been removed from Supabase and your dashboard.'
+        : '';
+      Swal.fire({
+        title: 'Deleted!',
+        text: (isTelegramFile
+          ? 'File removed from Supabase and your dashboard.'
+          : 'File removed from your dashboard.') + extraNote,
+        icon: 'success',
+        iconColor: '#10b981',
+        confirmButtonColor: '#10b981',
+        confirmButtonText: 'OK',
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f1f5f9' : '#1e293b',
+        customClass: {
+          popup: 'rounded-3xl shadow-2xl',
+          confirmButton: 'px-6 py-2.5 rounded-xl font-bold text-white',
+        },
       });
     } else {
-      // Local file only - delete with SweetAlert2 confirmation
+      // Hard errors — local state was still cleaned up but something upstream failed
       Swal.fire({
-        title: `Delete "${file.name}"?`,
-        text: 'This will permanently remove the file from your device.',
+        title: 'Partially Deleted',
+        html: `
+          <p class="text-sm mb-3">The file was removed from your dashboard, but there were issues:</p>
+          <ul class="text-left text-sm space-y-1 list-disc pl-5">
+            ${hardErrors.map(e => `<li>${e}</li>`).join('')}
+          </ul>
+        `,
         icon: 'warning',
-        iconColor: '#ef4444',
-        showCancelButton: true,
-        confirmButtonColor: '#ef4444',
-        cancelButtonColor: '#6b7280',
-        confirmButtonText: 'Yes, delete it!',
-        cancelButtonText: 'Cancel',
-        reverseButtons: true,
+        iconColor: '#f59e0b',
+        confirmButtonColor: '#f59e0b',
+        confirmButtonText: 'OK',
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f1f5f9' : '#1e293b',
         customClass: {
-          confirmButton: 'px-6 py-3 rounded-xl font-bold text-white transition-all hover:scale-105',
-          cancelButton: 'px-6 py-3 rounded-xl font-bold text-gray-300 transition-all hover:scale-105',
-          title: 'text-xl font-bold',
-          text: 'text-gray-300'
-        }
-      }).then((result) => {
-        if (result.isConfirmed) {
-          setFiles(prev => prev.filter(f => f.id !== id));
-          
-          // Success message
-          Swal.fire({
-            title: 'Deleted!',
-            text: 'File deleted from device.',
-            icon: 'success',
-            iconColor: '#10b981',
-            confirmButtonColor: '#10b981',
-            confirmButtonText: 'OK',
-            customClass: {
-              confirmButton: 'px-6 py-3 rounded-xl font-bold text-white',
-              title: 'text-xl font-bold',
-              text: 'text-gray-300'
-            }
-          });
-        }
+          popup: 'rounded-3xl shadow-2xl',
+          confirmButton: 'px-6 py-2.5 rounded-xl font-bold text-white',
+        },
       });
     }
   };
@@ -852,7 +894,8 @@ export default function App() {
                 telegramConfigChecked={telegramConfigState.checked}
                 telegramConfigLoading={telegramConfigState.loading}
                 onConfigureTelegram={() => handleSetCat('settings')}
-                openPreview={(f) => setPreview(f)} 
+                openPreview={(f) => setPreview(f)}
+                onDelete={handleDelete}
               />
             )}
           </div>

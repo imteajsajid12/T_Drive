@@ -181,3 +181,28 @@ export const getTelegramFileMetaList = async (userId) => {
     return [];
   }
 };
+
+/**
+ * Delete a file's metadata row from the Supabase `storage` table.
+ * Matches on file_id + user_id so we never accidentally delete another user's row.
+ * Returns true on success, false on failure (non-throwing so callers can decide how to handle).
+ */
+export const deleteTelegramFileMeta = async (fileId, userId) => {
+  if (!fileId || !userId) return false;
+  try {
+    const { error } = await supabase
+      .from('storage')
+      .delete()
+      .eq('file_id', String(fileId))
+      .eq('user_id', String(userId));
+
+    if (error) {
+      console.error('Error deleting Telegram file metadata from Supabase:', error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Unexpected error deleting Telegram file metadata:', err);
+    return false;
+  }
+};

@@ -21,13 +21,13 @@ const Ic = {
 // ============================================================
 const SectionWrapper = ({ children, className = '' }) => {
   const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: '-100px' });
+  const isInView = useInView(ref, { once: true, margin: '-60px' });
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, y: 40 }}
+      initial={{ opacity: 0, y: 30 }}
       animate={isInView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.8, ease: [0.22, 0.61, 0.36, 1] }}
+      transition={{ duration: 0.6, ease: [0.22, 0.61, 0.36, 1] }}
       className={className}
     >
       {children}
@@ -37,26 +37,35 @@ const SectionWrapper = ({ children, className = '' }) => {
 
 // ============================================================
 // UTILITY: Animated Counter
+// Uses requestAnimationFrame instead of setInterval for better
+// integration with the browser's rendering pipeline
 // ============================================================
 const AnimatedCounter = ({ target, suffix = '', duration = 2 }) => {
   const [count, setCount] = useState(0);
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true });
+  const rafRef = useRef(null);
 
   useEffect(() => {
     if (!isInView) return;
-    let start = 0;
-    const step = target / (duration * 60);
-    const timer = setInterval(() => {
-      start += step;
-      if (start >= target) {
-        setCount(target);
-        clearInterval(timer);
+    const startTime = performance.now();
+    const endTime = startTime + duration * 1000;
+
+    const tick = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / (duration * 1000), 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.floor(eased * target));
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(tick);
       } else {
-        setCount(Math.floor(start));
+        setCount(target);
       }
-    }, 16);
-    return () => clearInterval(timer);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [isInView, target, duration]);
 
   return <span ref={ref}>{count.toLocaleString()}{suffix}</span>;
@@ -169,8 +178,12 @@ const CarouselDots = ({ total, active, onChange, dark }) => (
 
 const AutoPlayIndicator = ({ isPlaying, dark }) => (
   <div className="flex items-center justify-center gap-2 mt-4">
-    <motion.div className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-emerald-500' : (dark ? 'bg-gray-500' : 'bg-gray-400')}`}
-      animate={isPlaying ? { scale: [1, 1.5, 1], opacity: [1, 0.5, 1] } : {}} transition={{ duration: 1.5, repeat: Infinity }} />
+    <motion.div
+      className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-emerald-500' : (dark ? 'bg-gray-500' : 'bg-gray-400')}`}
+      style={{ willChange: 'transform, opacity' }}
+      animate={isPlaying ? { scale: [1, 1.5, 1], opacity: [1, 0.5, 1] } : {}}
+      transition={{ duration: 1.5, repeat: Infinity }}
+    />
     <span className={`text-xs ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
       {isPlaying ? 'Auto-playing' : 'Paused'}
     </span>
@@ -216,8 +229,11 @@ const TrustBadges = ({ dark }) => (
 
 const ReviewSectionHeader = ({ dark }) => (
   <SectionWrapper className="text-center mb-12 sm:mb-16">
-    <motion.div className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold mb-6 ${dark ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-400 border border-purple-500/30' : 'bg-gradient-to-r from-purple-50 to-pink-50 text-purple-600 border border-purple-200'}`}
-      animate={{ scale: [1, 1.02, 1] }} transition={{ duration: 2, repeat: Infinity }}>
+    <motion.div
+      className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold mb-6 ${dark ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-400 border border-purple-500/30' : 'bg-gradient-to-r from-purple-50 to-pink-50 text-purple-600 border border-purple-200'}`}
+      animate={{ scale: [1, 1.02, 1] }}
+      transition={{ duration: 2, repeat: Infinity }}
+    >
       <Ic.Heart /> Loved by Thousands
     </motion.div>
     <h2 className={`text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black mb-4 ${dark ? 'text-white' : 'text-gray-900'}`}>

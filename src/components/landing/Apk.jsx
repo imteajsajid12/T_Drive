@@ -30,9 +30,9 @@ const Ic = {
 // ====== HELPERS ======
 const SectionWrapper = ({ children, className = '' }) => {
   const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: '-100px' });
+  const isInView = useInView(ref, { once: true, margin: '-60px' });
   return (
-    <motion.div ref={ref} initial={{ opacity: 0, y: 40 }} animate={isInView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.8, ease: [0.22, 0.61, 0.36, 1] }} className={className}>
+    <motion.div ref={ref} initial={{ opacity: 0, y: 30 }} animate={isInView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, ease: [0.22, 0.61, 0.36, 1] }} className={className}>
       {children}
     </motion.div>
   );
@@ -164,7 +164,12 @@ export const Apk = ({ dark }) => {
                   <p className={`font-bold text-sm ${dark ? 'text-white' : 'text-gray-800'}`}>Scan to Download</p>
                   <p className={`text-xs ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Point your camera at the QR code</p>
                   <div className="flex items-center gap-1.5 mt-2">
-                    <motion.div className="w-2 h-2 rounded-full bg-emerald-500" animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.5, repeat: Infinity }} />
+                    <motion.div
+                      className="w-2 h-2 rounded-full bg-emerald-500"
+                      style={{ willChange: 'opacity' }}
+                      animate={{ opacity: [1, 0.3, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    />
                     <span className={`text-[10px] font-bold ${dark ? 'text-emerald-400' : 'text-emerald-600'}`}>Available worldwide</span>
                   </div>
                 </div>
@@ -174,8 +179,13 @@ export const Apk = ({ dark }) => {
 
           <div className="order-1 lg:order-2 flex justify-center">
             <div className="relative">
-              <motion.div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 sm:w-80 sm:h-80 rounded-full bg-gradient-to-br from-emerald-500/30 to-teal-400/30 blur-[80px]" animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }} transition={{ duration: 4, repeat: Infinity }} />
-
+              {/* Pulsing ambient glow behind the phone */}
+              <motion.div
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 sm:w-80 sm:h-80 rounded-full bg-gradient-to-br from-emerald-500/30 to-teal-400/30 blur-[80px]"
+                style={{ willChange: 'transform, opacity' }}
+                animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
+                transition={{ duration: 4, repeat: Infinity }}
+              />
               <motion.div className="relative z-10" initial={{ opacity: 0, y: 40 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.8 }}>
                 <div className="w-56 sm:w-64 h-[440px] sm:h-[500px] rounded-[2.5rem] bg-gray-900 border-[3px] border-gray-700 shadow-2xl overflow-hidden relative">
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-6 bg-black rounded-b-2xl z-30" />
@@ -255,23 +265,46 @@ export const Apk = ({ dark }) => {
                 </div>
               </motion.div>
 
-              <motion.div className={`absolute -left-8 sm:-left-12 top-16 sm:top-20 z-20 px-3 py-2.5 rounded-xl ${dark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'} shadow-xl`} initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 1.2 }} animate={{ y: [0, -8, 0] }}>
+              {/* Floating badge — left */}
+              <motion.div
+                className={`absolute -left-8 sm:-left-12 top-16 sm:top-20 z-20 px-3 py-2.5 rounded-xl ${dark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'} shadow-xl`}
+                initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 1.2 }}
+                style={{ willChange: 'transform' }}
+                animate={{ y: [0, -8, 0] }}
+              >
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-400 flex items-center justify-center"><Ic.Shield width={14} height={14} className="text-white" /></div>
                   <div><p className={`text-[10px] font-bold ${dark ? 'text-white' : 'text-gray-800'}`}>End-to-End</p><p className={`text-[9px] ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Encrypted</p></div>
                 </div>
               </motion.div>
 
-              <motion.div className={`absolute -right-8 sm:-right-12 bottom-24 sm:bottom-32 z-20 px-3 py-2.5 rounded-xl ${dark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'} shadow-xl`} initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 1.4 }} animate={{ y: [0, 8, 0] }}>
+              {/* Floating badge — right bottom */}
+              <motion.div
+                className={`absolute -right-8 sm:-right-12 bottom-24 sm:bottom-32 z-20 px-3 py-2.5 rounded-xl ${dark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'} shadow-xl`}
+                initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 1.4 }}
+                style={{ willChange: 'transform' }}
+                animate={{ y: [0, 8, 0] }}
+              >
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center"><Ic.Zap width={14} height={14} className="text-white" /></div>
                   <div><p className={`text-[10px] font-bold ${dark ? 'text-white' : 'text-gray-800'}`}>Super Fast</p><p className={`text-[9px] ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Upload Speed</p></div>
                 </div>
               </motion.div>
 
-              <motion.div className={`absolute -right-4 sm:-right-8 top-1/2 -translate-y-1/2 z-20 px-3 py-2.5 rounded-xl ${dark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'} shadow-xl`} initial={{ opacity: 0, scale: 0 }} whileInView={{ opacity: 1, scale: 1, y: -5 }} viewport={{ once: true }} transition={{ delay: 1.6, type: 'spring' }}>
+              {/* Floating badge — right center */}
+              <motion.div
+                className={`absolute -right-4 sm:-right-8 top-1/2 -translate-y-1/2 z-20 px-3 py-2.5 rounded-xl ${dark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'} shadow-xl`}
+                initial={{ opacity: 0, scale: 0 }} whileInView={{ opacity: 1, scale: 1, y: -5 }} viewport={{ once: true }} transition={{ delay: 1.6, type: 'spring' }}
+              >
                 <div className="flex items-center gap-2">
-                  <motion.div className="w-8 h-8 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 flex items-center justify-center" animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 2, repeat: Infinity }}><Ic.Star className="text-white" /></motion.div>
+                  <motion.div
+                    className="w-8 h-8 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 flex items-center justify-center"
+                    style={{ willChange: 'transform' }}
+                    animate={{ rotate: [0, 10, -10, 0] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <Ic.Star className="text-white" />
+                  </motion.div>
                   <div><p className={`text-[10px] font-bold ${dark ? 'text-white' : 'text-gray-800'}`}>4.9 Rating</p><p className={`text-[9px] ${dark ? 'text-gray-500' : 'text-gray-400'}`}>10K+ Users</p></div>
                 </div>
               </motion.div>
