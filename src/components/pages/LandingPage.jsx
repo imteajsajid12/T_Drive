@@ -6,7 +6,7 @@ import { BotCreator, Pricing, FAQ, CTA, Footer } from '../landing/LandingSection
 import { Ic } from '../landing/LandingIcons';
 import { InfiniteGridBackdrop } from '../ui/the-infinite-grid';
 import { Apk } from '../landing/Apk'; 
-
+import { Review } from '../landing/CustomerReviews'; 
 export const LandingPage = ({ onLoginClick, isAuthed = false, user, onDashboardClick, onProfileClick, onLogout }) => {
   const [dark, setDark] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -57,10 +57,12 @@ export const LandingPage = ({ onLoginClick, isAuthed = false, user, onDashboardC
         <Features dark={dark} />
           <Apk dark={dark} /> 
         <BotCreator dark={dark} />
+       <Review dark={dark} />
         <Pricing dark={dark} />
         <FAQ dark={dark} />
         <CTA dark={dark} onLoginClick={onLoginClick} />
         <Footer dark={dark} />
+
         
       </div>
 
