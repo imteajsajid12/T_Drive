@@ -615,6 +615,72 @@ export default function App() {
     setUpOpen(true);
   };
 
+  // ── Silent delete (no confirmation dialog) — used by bulk-delete ────────────
+  // Does full Telegram + Supabase + local-state cleanup without blocking UI with
+  // per-file Swal modals. The caller is responsible for showing a single confirm.
+  const handleDeleteSilent = async (id) => {
+    const file = filesRef.current.find(f => f.id === id);
+    if (!file) return;
+
+    const isTelegramFile = file.source === 'telegram' || String(file.id).startsWith('tg_');
+
+    let tgMsgIdInt = null;
+    if (file.tgMessageId) {
+      const parsed = parseInt(file.tgMessageId, 10);
+      if (!isNaN(parsed)) tgMsgIdInt = parsed;
+    }
+    if (tgMsgIdInt === null && String(file.id).startsWith('tg_')) {
+      const parsed = parseInt(String(file.id).replace('tg_', ''), 10);
+      if (!isNaN(parsed)) tgMsgIdInt = parsed;
+    }
+
+    const supabaseFileId = file.tgFileId || file.telegramKey || null;
+
+    // Step 1: Telegram
+    if (isTelegramFile && tgMsgIdInt !== null) {
+      try {
+        const { tgToken, tgChatId } = await loadTelegramCredentials();
+        const effectiveChatId = file.tgChatId || tgChatId;
+        if (tgToken && effectiveChatId) {
+          await fetch(`https://api.telegram.org/bot${tgToken}/deleteMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: effectiveChatId, message_id: tgMsgIdInt }),
+          });
+        }
+      } catch (err) {
+        console.warn('Bulk-delete: Telegram remove error for', id, err);
+      }
+    }
+
+    // Step 2: Supabase
+    if (supabaseFileId && user?.$id) {
+      await deleteTelegramFileMeta(supabaseFileId, user.$id).catch(err =>
+        console.warn('Bulk-delete: Supabase remove error for', id, err)
+      );
+    }
+
+    // Step 3: Local state (use functional update so each call operates on latest state)
+    setFiles(prev => {
+      const next = prev.filter(f => f.id !== id);
+      if (user?.$id) {
+        try {
+          writeUserStorage('tDriveFiles', JSON.stringify(next), user.$id);
+        } catch {
+          const lightFiles = next.map(({ url, ...rest }) => rest);
+          writeUserStorage('tDriveFiles', JSON.stringify(lightFiles), user.$id);
+        }
+      }
+      return next;
+    });
+
+    // Step 4: Close preview if open
+    setPreview(current => {
+      if (!current || current.file?.id !== id) return current;
+      return null;
+    });
+  };
+
   const handleDelete = async (id) => {
     const file = files.find(f => f.id === id);
     if (!file) return;
@@ -896,6 +962,7 @@ export default function App() {
                 onConfigureTelegram={() => handleSetCat('settings')}
                 openPreview={(f) => setPreview(f)}
                 onDelete={handleDelete}
+                onDeleteMany={handleDeleteSilent}
               />
             )}
           </div>

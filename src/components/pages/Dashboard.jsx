@@ -19,6 +19,7 @@ export const Dashboard = ({
   setQ,
   openPreview,
   onDelete,
+  onDeleteMany,
   user,
   telegramReady = true,
   telegramConfigChecked = true,
@@ -33,6 +34,9 @@ export const Dashboard = ({
   const [nameQuery, setNameQuery] = useState(q || '');
   const [minSizeKB, setMinSizeKB] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  // ── Multi-select state ────────────────────────────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const isSelectMode = selectedIds.size > 0;
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || 'there';
 
   const computeSize = (sizeStr) => {
@@ -166,6 +170,100 @@ export const Dashboard = ({
   }, [totalPages]);
 
   const star = (id) => { setFiles(files.map(f => f.id === id ? { ...f, star: !f.star } : f)); setCm(null); };
+
+  // ── Multi-select handlers ─────────────────────────────────────────────────────
+  const toggleSelectFile = useCallback((id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectAllOnPage = useCallback(() => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      paginatedFiles.forEach(f => next.add(f.id));
+      return next;
+    });
+  }, [paginatedFiles]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const allOnPageSelected = paginatedFiles.length > 0 && paginatedFiles.every(f => selectedIds.has(f.id));
+
+  const handleBulkDelete = useCallback(async () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+
+    const Swal = (await import('sweetalert2')).default;
+
+    const { isConfirmed } = await Swal.fire({
+      title: `Delete ${ids.length} file${ids.length > 1 ? 's' : ''}?`,
+      text: 'This will permanently remove the selected files.',
+      icon: 'warning',
+      iconColor: '#ef4444',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: `Yes, delete ${ids.length}!`,
+      cancelButtonText: 'Cancel',
+      reverseButtons: true,
+      background: isDark ? '#1e293b' : '#ffffff',
+      color: isDark ? '#f1f5f9' : '#1e293b',
+      customClass: {
+        popup: 'rounded-3xl shadow-2xl',
+        confirmButton: 'px-6 py-2.5 rounded-xl font-bold text-white transition-all',
+        cancelButton: 'px-6 py-2.5 rounded-xl font-bold transition-all',
+      },
+    });
+
+    if (!isConfirmed) return;
+
+    // Clear selection immediately so UI feels snappy
+    clearSelection();
+
+    // Show a progress loader
+    Swal.fire({
+      title: `Deleting ${ids.length} file${ids.length > 1 ? 's' : ''}…`,
+      text: 'Please wait.',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      background: isDark ? '#1e293b' : '#ffffff',
+      color: isDark ? '#f1f5f9' : '#1e293b',
+      customClass: { popup: 'rounded-3xl shadow-2xl' },
+      didOpen: () => Swal.showLoading(),
+    });
+
+    // Use silent delete if available (no per-file dialogs), otherwise fall back to onDelete
+    const deleteFn = onDeleteMany || onDelete;
+
+    // Sequential to respect Telegram API rate limits
+    for (const id of ids) {
+      await deleteFn(id);
+    }
+
+    Swal.fire({
+      title: 'Done!',
+      text: `${ids.length} file${ids.length > 1 ? 's' : ''} removed.`,
+      icon: 'success',
+      iconColor: '#10b981',
+      confirmButtonColor: '#10b981',
+      confirmButtonText: 'OK',
+      timer: 2000,
+      timerProgressBar: true,
+      background: isDark ? '#1e293b' : '#ffffff',
+      color: isDark ? '#f1f5f9' : '#1e293b',
+      customClass: {
+        popup: 'rounded-3xl shadow-2xl',
+        confirmButton: 'px-6 py-2.5 rounded-xl font-bold text-white',
+      },
+    });
+  }, [selectedIds, onDelete, onDeleteMany, clearSelection, isDark]);
   const telegramLocked = !telegramReady;
   const telegramActionsDisabled = telegramConfigLoading || telegramLocked;
 
@@ -221,6 +319,67 @@ export const Dashboard = ({
           <p className="text-sm font-medium">Checking Telegram configuration...</p>
         </motion.div>
       )}
+
+      {/* ── Bulk-select floating toolbar ──────────────────────────────────────────
+          Slides in from the bottom when one or more files are selected.
+      ──────────────────────────────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {isSelectMode && (
+          <motion.div
+            key="bulk-toolbar"
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl border"
+            style={{
+              background: isDark ? 'rgba(17,24,39,0.92)' : 'rgba(255,255,255,0.95)',
+              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)',
+              backdropFilter: 'blur(20px)',
+            }}
+          >
+            {/* Count badge */}
+            <span className="flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-500">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              {selectedIds.size} selected
+            </span>
+
+            {/* Select / Deselect all on page */}
+            <button
+              type="button"
+              onClick={allOnPageSelected ? clearSelection : selectAllOnPage}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors ${isDark ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'}`}
+            >
+              {allOnPageSelected ? 'Deselect page' : 'Select page'}
+            </button>
+
+            {/* Divider */}
+            <div className={`w-px h-6 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`} />
+
+            {/* Bulk delete */}
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 active:scale-95 transition-all shadow-lg shadow-red-500/30"
+            >
+              <Ic.Trash />
+              Delete {selectedIds.size}
+            </button>
+
+            {/* Cancel */}
+            <button
+              type="button"
+              onClick={clearSelection}
+              aria-label="Cancel selection"
+              className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${isDark ? 'text-gray-400 hover:bg-gray-700 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'}`}
+            >
+              <Ic.X />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Header & Stats */}
       {cat === 'home' && (
@@ -545,7 +704,7 @@ export const Dashboard = ({
                     exit={{ opacity: 0, scale: 0.8, filter: "blur(5px)" }} 
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
-                    <FileCard file={f} isDark={isDark} onPreview={() => openPreview({ file: f, items: previewableFiles, index: previewableFiles.findIndex((item) => item.id === f.id) })} isGrid={isGrid} idx={i} onDelete={onDelete} />
+                    <FileCard file={f} isDark={isDark} onPreview={() => openPreview({ file: f, items: previewableFiles, index: previewableFiles.findIndex((item) => item.id === f.id) })} isGrid={isGrid} idx={i} onDelete={onDelete} isSelected={selectedIds.has(f.id)} onToggleSelect={toggleSelectFile} />
                   </motion.div>
                 ))}
               </AnimatePresence>
