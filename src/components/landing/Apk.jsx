@@ -119,7 +119,7 @@ export const Apk = ({ dark }) => {
 
             <SectionWrapper>
               <div className="flex flex-col sm:flex-row gap-4 mb-8">
-                <motion.a href="#" whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }} className="group flex items-center gap-3 px-6 py-4 rounded-2xl transition-all shadow-lg bg-gray-900 hover:bg-gray-800">
+                <motion.a href="https://drive.google.com/file/d/1zs2sCgD3WwZgAAFEhBGJfb0e958smkCI/view?usp=drivesdk" whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }} className="group flex items-center gap-3 px-6 py-4 rounded-2xl transition-all shadow-lg bg-gray-900 hover:bg-gray-800">
                   <svg width="28" height="28" viewBox="0 0 24 24" className="flex-shrink-0">
                     <path fill="#34A853" d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 01-.61-.92V2.734a1 1 0 01.609-.92z"/>
                     <path fill="#4285F4" d="M17.556 8.237L5.178.766a1.003 1.003 0 00-1.036-.002L14.21 11.17l3.346-2.933z"/>
@@ -132,7 +132,7 @@ export const Apk = ({ dark }) => {
                   </div>
                 </motion.a>
 
-                <motion.a href="#" whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }} className="group flex items-center gap-3 px-6 py-4 rounded-2xl transition-all shadow-lg bg-gray-900 hover:bg-gray-800">
+                <motion.a href="https://drive.google.com/file/d/1zs2sCgD3WwZgAAFEhBGJfb0e958smkCI/view?usp=drivesdk" whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }} className="group flex items-center gap-3 px-6 py-4 rounded-2xl transition-all shadow-lg bg-gray-900 hover:bg-gray-800">
                   <Ic.Apple className="text-white flex-shrink-0" />
                   <div>
                     <p className="text-[10px] text-gray-400 font-medium">Download on the</p>
