@@ -285,7 +285,7 @@ export const Dashboard = ({
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      className="relative px-4 py-4 md:px-8 md:py-8 w-full space-y-8 max-w-480 mx-auto overflow-hidden"
+      className="relative px-4 py-4 md:px-8 md:py-8 w-full space-y-8 max-w-480 mx-auto"
     >
       <InfiniteGridBackdrop dark={isDark} className="z-0" />
       {telegramConfigChecked && telegramLocked && (
@@ -575,119 +575,170 @@ export const Dashboard = ({
                 <Ic.List />
               </button>
             </div>
+            {/* ── Filter button + dropdown ─────────────────────────────────────── */}
             <div className="relative">
-              <button onClick={() => { setShowFilter(!showFilter); setNameQuery(q || ''); }} className={`w-10 h-10 flex items-center justify-center rounded-xl shadow-sm transition-all hover:scale-105 ${isDark ? 'bg-gray-800 border border-gray-700 text-gray-400 hover:text-white hover:border-gray-600' : 'bg-white border border-gray-100 text-gray-500 hover:text-gray-800 hover:border-gray-300'}`}>
+              <button
+                onClick={() => { setShowFilter(!showFilter); setNameQuery(q || ''); }}
+                className={`w-10 h-10 flex items-center justify-center rounded-xl shadow-sm transition-all hover:scale-105
+                  ${showFilter
+                    ? (isDark ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-400' : 'bg-emerald-50 border border-emerald-300 text-emerald-600')
+                    : (isDark ? 'bg-gray-800 border border-gray-700 text-gray-400 hover:text-white hover:border-gray-600' : 'bg-white border border-gray-100 text-gray-500 hover:text-gray-800 hover:border-gray-300')}`}
+              >
                 <Ic.Filter />
               </button>
-              {showFilter && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                  transition={{ type: 'spring', damping: 20, stiffness: 200 }}
-                  className={`absolute right-0 top-full mt-2 min-w-[calc(100vw-2rem)] w-[calc(100vw-2rem)] sm:w-80 max-w-[calc(100vw-2rem)] sm:max-w-[20rem] rounded-2xl shadow-2xl z-20 overflow-hidden ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}
-                >
-                  <div className={`px-5 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
-                    <div className="flex items-center gap-2">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600'}`}>
-                        <Ic.Search />
-                      </div>
-                      <div>
-                        <h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-800'}`}>Advanced Search</h3>
-                        <p className={`text-[10px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Filter files by name, size, and type</p>
+
+              <AnimatePresence>
+                {showFilter && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.97 }}
+                    transition={{ type: 'spring', damping: 22, stiffness: 260 }}
+                    // Fixed positioning keeps the panel inside the viewport regardless of parent overflow
+                    className={`
+                      absolute right-0 top-full mt-2 z-50
+                      w-[min(calc(100vw-2rem),22rem)]
+                      rounded-2xl shadow-2xl border
+                      ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}
+                    `}
+                    // Stop clicks from bubbling to the document (would close it)
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Header */}
+                    <div className={`px-5 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600'}`}>
+                          <Ic.Filter />
+                        </div>
+                        <div>
+                          <h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-800'}`}>Filter Files</h3>
+                          <p className={`text-[10px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Search by name, size, and type</p>
+                        </div>
+                        <button
+                          onClick={() => setShowFilter(false)}
+                          className={`ml-auto p-1.5 rounded-lg transition-colors ${isDark ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                        >
+                          <Ic.X />
+                        </button>
                       </div>
                     </div>
-                  </div>
-                  <div className="max-h-[70vh] overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-4 sm:space-y-5 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-                    {/* Name Search */}
-                    <div className="space-y-2">
-                      <label className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                        Name contains
-                      </label>
-                      <input 
-                        value={nameQuery} 
-                        onChange={(e) => setNameQuery(e.target.value)} 
-                        className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${isDark ? 'bg-gray-700/50 border-gray-600 text-white focus:border-emerald-500 focus:bg-gray-700' : 'bg-gray-50 border-gray-200 text-gray-800 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10'}`} 
-                        placeholder="e.g. report, image, .jpg" 
-                      />
-                    </div>
-                    
-                    {/* Min Size */}
-                    <div className="space-y-2">
-                      <label className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                        Minimum size (KB)
-                      </label>
-                      <div className="relative">
-                        <input 
-                          value={minSizeKB} 
-                          onChange={(e) => setMinSizeKB(e.target.value.replace(/[^0-9.]/g, ''))} 
-                          className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${isDark ? 'bg-gray-700/50 border-gray-600 text-white focus:border-blue-500 focus:bg-gray-700' : 'bg-gray-50 border-gray-200 text-gray-800 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10'}`} 
-                          placeholder="e.g. 100" 
+
+                    {/* Body */}
+                    <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto overscroll-contain">
+
+                      {/* Name Search */}
+                      <div className="space-y-1.5">
+                        <label className={`text-xs font-bold flex items-center gap-1.5 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                          Name contains
+                        </label>
+                        <input
+                          value={nameQuery}
+                          onChange={(e) => setNameQuery(e.target.value)}
+                          placeholder="e.g. report, image, .jpg"
+                          className={`w-full px-3.5 py-2.5 rounded-xl text-sm outline-none transition-all border
+                            ${isDark
+                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500 focus:border-emerald-500'
+                              : 'bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10'}`}
                         />
-                        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>KB</span>
+                      </div>
+
+                      {/* Min Size */}
+                      <div className="space-y-1.5">
+                        <label className={`text-xs font-bold flex items-center gap-1.5 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
+                          Minimum size (KB)
+                        </label>
+                        <div className="relative">
+                          <input
+                            value={minSizeKB}
+                            onChange={(e) => setMinSizeKB(e.target.value.replace(/[^0-9.]/g, ''))}
+                            placeholder="e.g. 100"
+                            className={`w-full px-3.5 py-2.5 pr-10 rounded-xl text-sm outline-none transition-all border
+                              ${isDark
+                                ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500 focus:border-blue-500'
+                                : 'bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10'}`}
+                          />
+                          <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>KB</span>
+                        </div>
+                      </div>
+
+                      {/* File Type */}
+                      <div className="space-y-1.5">
+                        <label className={`text-xs font-bold flex items-center gap-1.5 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-purple-500 inline-block" />
+                          File type
+                        </label>
+                        {/* 5-column grid — always 5 cols so all buttons sit in one row */}
+                        <div className={`grid grid-cols-5 gap-1.5 p-2 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                          {[
+                            { key: 'all',   label: 'All',    Icon: Ic.Grid  },
+                            { key: 'image', label: 'Image',  Icon: Ic.Image },
+                            { key: 'video', label: 'Video',  Icon: Ic.Video },
+                            { key: 'doc',   label: 'Doc',    Icon: Ic.Doc   },
+                            { key: 'music', label: 'Music',  Icon: Ic.Music },
+                          ].map(({ key, label, Icon }) => {
+                            const active = filterType === key;
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => setFilterType(key)}
+                                className={`
+                                  relative flex flex-col items-center justify-center gap-1
+                                  py-2.5 px-1 rounded-lg text-[10px] font-semibold
+                                  transition-all duration-150 select-none
+                                  ${active
+                                    ? (isDark
+                                        ? 'bg-emerald-500/25 text-emerald-400 ring-1 ring-emerald-500/60 shadow-sm'
+                                        : 'bg-white text-emerald-700 ring-1 ring-emerald-300 shadow-sm')
+                                    : (isDark
+                                        ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                                        : 'text-gray-500 hover:bg-white hover:text-gray-700 hover:shadow-sm')}
+                                `}
+                              >
+                                <Icon />
+                                <span className="leading-none">{label}</span>
+                                {active && (
+                                  <span className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${isDark ? 'bg-emerald-400' : 'bg-emerald-500'}`} />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
-                    
-                    {/* Type Filter */}
-                    <div className="space-y-2">
-                      <label className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-                        File type
-                      </label>
-                      <div className={`grid grid-cols-2 sm:grid-cols-5 gap-2 ${isDark ? 'bg-gray-700/30 p-2.5 sm:p-3 rounded-xl' : 'bg-gray-100 p-2.5 sm:p-3 rounded-xl'}`}>
-                        {['all','image','video','doc','music'].map((t) => (
-                          <button 
-                            key={t} 
-                            onClick={() => setFilterType(t)} 
-                            className={`relative flex flex-col items-center justify-center gap-1 py-2 rounded-lg text-[11px] transition-all min-h-13 ${filterType === t 
-                              ? (isDark ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/50' : 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200') 
-                              : (isDark ? 'text-gray-400 hover:bg-gray-700/50' : 'text-gray-500 hover:bg-gray-200')}`}
-                          >
-                            {t === 'all' && <Ic.Grid />}
-                            {t === 'image' && <Ic.Image />}
-                            {t === 'video' && <Ic.Video />}
-                            {t === 'doc' && <Ic.Doc />}
-                            {t === 'music' && <Ic.Music />}
-                            <span className="font-medium">{t === 'all' ? 'All' : t.charAt(0).toUpperCase() + t.slice(1)}</span>
-                            {filterType === t && (
-                              <span className={`absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full ${isDark ? 'bg-emerald-400' : 'bg-emerald-600'}`}></span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Footer Actions */}
-                  <div className={`px-4 sm:px-5 py-4 border-t ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-100 bg-gray-50/50'}`}>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <button 
-                        onClick={() => { 
-                          setFilterType('all'); 
-                          setMinSizeKB(''); 
-                          setNameQuery(''); 
-                          setQ && setQ(''); 
-                          setShowFilter(false); 
-                        }} 
-                        className={`w-full sm:w-auto text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-200'}`}
+
+                    {/* Footer */}
+                    <div className={`px-4 py-3 border-t flex items-center justify-between gap-3 ${isDark ? 'border-gray-700 bg-gray-900/60' : 'border-gray-100 bg-gray-50'}`}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilterType('all');
+                          setMinSizeKB('');
+                          setNameQuery('');
+                          setQ && setQ('');
+                          setShowFilter(false);
+                        }}
+                        className={`text-xs font-semibold px-4 py-2 rounded-xl transition-colors
+                          ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-200'}`}
                       >
                         Reset
                       </button>
-                      <button 
-                        onClick={() => { 
-                          setQ && setQ(nameQuery); 
-                          setShowFilter(false); 
-                        }} 
-                        className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-linear-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 hover:scale-105 transition-all"
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQ && setQ(nameQuery);
+                          setShowFilter(false);
+                        }}
+                        className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/35 hover:scale-105 transition-all"
                       >
-                        Apply Filters
+                        Apply
                       </button>
                     </div>
-                  </div>
-                </motion.div>
-              )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>
