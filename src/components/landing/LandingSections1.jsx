@@ -150,15 +150,39 @@ export const Hero = ({ dark }) => {
           <p className={`text-base sm:text-lg mb-8 max-w-lg ${dark ? 'text-gray-400' : 'text-gray-600'}`}>
             Upload, download, and manage your files directly through Telegram. T-Drive makes cloud storage as simple as sending a message.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-bold text-base sm:text-lg shadow-xl shadow-emerald-500/30 flex items-center justify-center gap-2">
-              <Ic.Send /> Start Free Trial
-            </motion.button>
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-              className={`px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl font-bold text-base sm:text-lg flex items-center justify-center gap-2 border-2 ${dark ? 'border-gray-700 text-white hover:bg-gray-800' : 'border-gray-200 text-gray-800 hover:bg-gray-50'}`}>
-              <Ic.Play /> Watch Demo
-            </motion.button>
-          </div>
+         <div className="flex flex-col sm:flex-row gap-4">
+<motion.button
+  whileHover={{ scale: 1.05 }}
+  whileTap={{ scale: 0.95 }}
+  onClick={() => {
+    window.location.href = "/dashboard";
+  }}
+  className="px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-bold text-base sm:text-lg shadow-xl shadow-emerald-500/30 flex items-center justify-center gap-2"
+>
+  <Ic.Send />
+  Start Free Trial
+</motion.button>
+
+  <motion.button
+    whileHover={{ scale: 1.05 }}
+    whileTap={{ scale: 0.95 }}
+    onClick={() =>
+      window.open(
+        "https://www.youtube.com/watch?v=DRilJ2Xj_9U",
+        "_blank",
+        "noopener,noreferrer"
+      )
+    }
+    className={`px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl font-bold text-base sm:text-lg flex items-center justify-center gap-2 border-2 ${
+      dark
+        ? "border-gray-700 text-white hover:bg-gray-800"
+        : "border-gray-200 text-gray-800 hover:bg-gray-50"
+    }`}
+  >
+    <Ic.Play />
+    Watch Demo
+  </motion.button>
+</div>
           <div className="flex items-center gap-6 mt-8">
             <div className="flex -space-x-2">
               {['A', 'B', 'C', 'D'].map((l, i) => (
