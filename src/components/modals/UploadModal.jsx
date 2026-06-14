@@ -171,7 +171,8 @@ export const UploadModal = ({ open, close, isDark, onUpload, user, disabled = fa
         fileId: fileMetaId,
         extension: getFileExtension(f.name) || tp,
         size: normalizeSizeText(f.size),
-        userId: user?.$id || 'default'
+        userId: user?.$id || 'default',
+        fileName: f.name,
       });
     } catch (err) {
       console.error('Failed to save file metadata to Appwrite:', err);

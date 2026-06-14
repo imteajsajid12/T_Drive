@@ -4,7 +4,7 @@ import { Ic } from '../../icons';
 import { tGrad, tIcon, fmt, formatTime, getFileIcon } from '../../utils';
 import Swal from 'sweetalert2';
 
-const buildProxyUrl = (rawUrl, download = false) => {
+const buildProxyUrl = (rawUrl, download = false, fileName = '') => {
   if (!rawUrl) return '';
   if (rawUrl.startsWith('blob:') || rawUrl.startsWith('data:') || rawUrl.startsWith('/api/proxy')) {
     return rawUrl;
@@ -12,11 +12,12 @@ const buildProxyUrl = (rawUrl, download = false) => {
 
   if (/^https?:\/\//i.test(rawUrl)) {
     const params = new URLSearchParams({ url: rawUrl });
-
     if (download) {
       params.set('download', '1');
     }
-
+    if (fileName) {
+      params.set('filename', fileName);
+    }
     return `/api/proxy?${params.toString()}`;
   }
 
@@ -70,7 +71,37 @@ export const MediaPreview = ({ file, items = [], index = 0, isOpen, onClose, isD
 
   const documentRawSrc = file?.url || file?.preview || '';
   const documentPreviewSrc = documentSrc || buildProxyUrl(documentRawSrc);
-  const documentDownloadSrc = buildProxyUrl(documentRawSrc, true);
+  const documentDownloadSrc = buildProxyUrl(documentRawSrc, true, file?.name || '');
+
+  // ── Blob-based download — the only reliable cross-browser approach for
+  // cross-origin files. <a download> is silently ignored for cross-origin URLs.
+  const handleDownload = async () => {
+    const rawSrc = file?.url || file?.preview || '';
+    if (!rawSrc) return;
+
+    const proxySrc = buildProxyUrl(rawSrc, true, file?.name || '');
+    const fileName = file?.name || 'download';
+
+    try {
+      const res = await fetch(proxySrc);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+    } catch (err) {
+      console.error('[MediaPreview] download failed:', err);
+      // Fallback: open the proxy URL directly in a new tab
+      window.open(proxySrc, '_blank', 'noopener,noreferrer');
+    }
+  };
 
   useEffect(() => {
     setIsPlaying(false);
@@ -252,14 +283,15 @@ export const MediaPreview = ({ file, items = [], index = 0, isOpen, onClose, isD
                 </button>
               </>
             )}
-            <a
-              href={documentDownloadSrc || '#'}
-              download={file.name}
+            <button
+              type="button"
+              onClick={handleDownload}
               aria-label="Download file"
-              className={`p-2 rounded-xl transition-colors ${isFullscreenPreview ? 'bg-black/55 hover:bg-black/75 text-white' : (isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500')} ${!documentDownloadSrc ? 'pointer-events-none opacity-40' : ''}`}
+              title={`Download ${file.name}`}
+              className={`p-2 rounded-xl transition-colors ${isFullscreenPreview ? 'bg-black/55 hover:bg-black/75 text-white' : (isDark ? 'hover:bg-gray-800 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-800')}`}
             >
               <Ic.Download />
-            </a>
+            </button>
           </div>
         </div>
 
@@ -481,9 +513,9 @@ export const MediaPreview = ({ file, items = [], index = 0, isOpen, onClose, isD
                         {getFileIcon(file.name, file.type)()}
                         <p className="mt-4 font-bold text-sm text-gray-500">{file.name.split('.').pop().toUpperCase()}</p>
                       </div>
-                      <a href={documentDownloadSrc || documentPreviewSrc} download={file.name} className="mt-4 px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-colors text-sm font-semibold flex items-center gap-2">
+                      <button type="button" onClick={handleDownload} className="mt-4 px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-colors text-sm font-semibold flex items-center gap-2">
                         <Ic.Download /> Download to View
-                      </a>
+                      </button>
                     </div>
                     <div className="p-6">
                       <h4 className={`font-bold mb-2 break-all ${isDark ? 'text-white' : 'text-gray-800'}`}>{file.name}</h4>
@@ -516,13 +548,13 @@ export const MediaPreview = ({ file, items = [], index = 0, isOpen, onClose, isD
             <span className={`px-3 py-1 rounded-full text-xs font-medium bg-linear-to-r ${tGrad(file.type)} text-white`}>{file.type}</span>
           </div>
           <div className="flex items-center justify-end gap-3">
-            <a
-              href={documentDownloadSrc || documentPreviewSrc || '#'}
-              download={file.name}
+            <button
+              type="button"
+              onClick={handleDownload}
               className={`px-4 py-2 rounded-xl bg-linear-to-r from-emerald-500 to-teal-400 text-white text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all min-w-0 ${!documentPreviewSrc ? 'pointer-events-none opacity-40' : ''}`}
             >
               <Ic.Download /> Download
-            </a>
+            </button>
             <button 
               onClick={() => {
                 // SweetAlert2 confirmation for delete

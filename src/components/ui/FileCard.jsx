@@ -49,6 +49,7 @@ const FileCardComponent = ({ file, isGrid, isDark, onPreview, onDelete, idx, isS
   const activeLoadRef = useRef(false);
 
   useEffect(() => {
+
     if (file?.type !== 'image' || !imageSource || typeof window === 'undefined') return;
 
     const controller = new AbortController();
@@ -139,6 +140,45 @@ const FileCardComponent = ({ file, isGrid, isDark, onPreview, onDelete, idx, isS
   const handleToggleSelect = (e) => {
     e.stopPropagation();
     onToggleSelect && onToggleSelect(file.id);
+  };
+
+  const handleDownload = async (e) => {
+    e.stopPropagation();
+
+    const rawSrc = file.url || file.preview || '';
+    if (!rawSrc) return;
+
+    // Build the proxy URL — always go through the proxy for Telegram URLs so
+    // we can pass the real filename and force attachment disposition.
+    const isTelegram = rawSrc.startsWith('https://api.telegram.org');
+    const proxySrc = isTelegram
+      ? `/api/proxy?url=${encodeURIComponent(rawSrc)}&download=1&filename=${encodeURIComponent(file.name || 'download')}`
+      : rawSrc;
+
+    // Fetch as blob so the browser saves with file.name, not the URL path.
+    // This is the only reliable cross-browser way to force a named download
+    // for a cross-origin resource — <a download> is silently ignored for
+    // cross-origin URLs in all modern browsers.
+    try {
+      const response = await fetch(proxySrc);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = file.name || 'download';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Revoke after a short delay so the browser has time to start the download
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+    } catch (err) {
+      console.error('[FileCard] download failed:', err);
+      // Last-resort fallback: open in new tab
+      window.open(proxySrc, '_blank', 'noopener,noreferrer');
+    }
   };
 
   // ── Grid thumbnail + action bar ───────────────────────────────────────────────
@@ -282,6 +322,21 @@ const FileCardComponent = ({ file, isGrid, isDark, onPreview, onDelete, idx, isS
           </button>
           <button
             type="button"
+            onClick={handleDownload}
+            aria-label={`Download ${file.name}`}
+            className={`
+              flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg
+              text-[11px] font-semibold active:scale-95 transition-colors
+              ${isDark
+                ? 'bg-emerald-500/20 text-emerald-400 active:bg-emerald-500/40'
+                : 'bg-emerald-50     text-emerald-600 active:bg-emerald-100'}
+            `}
+          >
+            <Ic.Download />
+            <span></span>
+          </button>
+          <button
+            type="button"
             onClick={handleDelete}
             aria-label={`Delete ${file.name}`}
             className={`
@@ -322,6 +377,22 @@ const FileCardComponent = ({ file, isGrid, isDark, onPreview, onDelete, idx, isS
             `}
           >
             <Ic.Eye />
+            <span></span>
+          </button>
+          <button
+            type="button"
+            onClick={handleDownload}
+            aria-label={`Download ${file.name}`}
+            title="Download"
+            className={`
+              flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold
+              transition-colors active:scale-95
+              ${isDark
+                ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/40 hover:text-emerald-300'
+                : 'bg-emerald-50     text-emerald-600 hover:bg-emerald-100    hover:text-emerald-700'}
+            `}
+          >
+            <Ic.Download />
             <span></span>
           </button>
           <button
@@ -505,6 +576,20 @@ const FileCardComponent = ({ file, isGrid, isDark, onPreview, onDelete, idx, isS
               `}
             >
               <Ic.Eye />
+            </button>
+            <button
+              type="button"
+              onClick={handleDownload}
+              aria-label={`Download ${file.name}`}
+              title="Download file"
+              className={`
+                w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl transition-colors
+                ${isDark
+                  ? 'text-emerald-400 hover:bg-emerald-500/20 active:bg-emerald-500/20 hover:text-emerald-300 active:text-emerald-300'
+                  : 'text-emerald-500 hover:bg-emerald-50 active:bg-emerald-50 hover:text-emerald-700 active:text-emerald-700'}
+              `}
+            >
+              <Ic.Download />
             </button>
             <button
               type="button"

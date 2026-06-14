@@ -13,7 +13,7 @@ import { Dashboard } from './components/pages/Dashboard';
 import { LoginPage } from './components/pages/LoginPage';
 import { LandingPage } from './components/pages/LandingPage';
 import { BackgroundBlobs } from './components/ui/Utils';
-import { account, client, getTelegramConfig, getTelegramFileMetaList, saveTelegramFileMeta, deleteTelegramFileMeta } from './lib/supabase';
+import { account, client, getTelegramConfig, getTelegramFileMetaList, saveTelegramFileMeta, deleteTelegramFileMeta, updateFileNameInDb } from './lib/supabase';
 import { createClient } from './utils/supabase/client';
 const supabase = createClient();
 import { normalizeSizeText } from './utils';
@@ -205,20 +205,57 @@ export default function App() {
     });
   };
 
+  // ── Name resolution helpers ──────────────────────────────────────────────────
+
+  /**
+   * Returns true if the name is a real human-readable filename, not a raw
+   * Telegram file_id placeholder or an auto-generated fallback.
+   */
+  const isRealFileName = (name) =>
+    Boolean(name) &&
+    !name.startsWith('telegram_') &&
+    !name.startsWith('file_') &&
+    !name.startsWith('tg_file');
+
+  /**
+   * Build a display-ready file name from a Supabase storage row.
+   * Priority (highest → lowest):
+   *   1. doc.name  (the `name` column in the Supabase `storage` table)
+   *   2. file_<shortId>.<ext>  (clean fallback — never shows raw Telegram file IDs)
+   */
+  const resolveDisplayName = (doc) => {
+    // `doc.name` is the `name` column from the Supabase `storage` table
+    if (doc.name && doc.name.trim() && isRealFileName(doc.name)) {
+      return doc.name.trim();
+    }
+    const ext = (doc.Extension || '').toLowerCase();
+    // Use a short numeric segment from the DB row id, not the opaque Telegram file_id
+    const shortId = String(doc.$id || doc.id || '').slice(-6) || 'unknown';
+    return `file_${shortId}${ext ? `.${ext}` : ''}`;
+  };
+
   const buildTelegramFileEntry = async (doc, tgToken) => {
     const fileId = doc.file_id;
     const extension = (doc.Extension || '').toLowerCase();
     const type = inferTypeFromExtension(extension);
     const previewUrl = tgToken ? await resolveTelegramFileUrl(tgToken, fileId) : null;
     const size = normalizeSizeText(doc.size);
-    const safeId = doc.$id || fileId;
+    const safeId = doc.$id || doc.id || fileId;
+
+    const displayName = resolveDisplayName(doc);
+
+    // Supabase uses created_at, Appwrite uses $createdAt
+    const rawDate = doc.created_at || doc.$createdAt || null;
+    const dateStr = rawDate
+      ? new Date(rawDate).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0];
 
     return {
       id: safeId,
-      name: `telegram_${fileId}${extension ? `.${extension}` : ''}`,
+      name: displayName,
       type,
       size,
-      date: doc.$createdAt ? new Date(doc.$createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      date: dateStr,
       preview: previewUrl || '',
       thumb: (type === 'image' || type === 'video') ? (previewUrl || '') : null,
       url: previewUrl || '',
@@ -227,7 +264,7 @@ export default function App() {
       telegramKey: fileId,
       tgFileId: fileId,
       tgMessageId: String(safeId).replace(/^tg_/, ''),
-      telegramDbId: doc.$id
+      telegramDbId: doc.$id || doc.id,
     };
   };
 
@@ -338,34 +375,93 @@ export default function App() {
 
     const loadTelegramFilesFromDatabase = async () => {
       const { tgToken } = await loadTelegramCredentials();
-
       const userId = user?.$id || 'default';
       const records = await getTelegramFileMetaList(userId);
       if (!records.length) return;
 
-      const entries = await chunkedPromiseAll(records, (doc) => buildTelegramFileEntry(doc, tgToken), 5);
-      const entriesByKey = new Map(entries.map((entry) => [getTelegramFileKey(entry), entry]));
+      // ── Backfill pass: rows without a real name in the `name` column ────────
+      // Strategy: build a lookup map from in-memory files (most authoritative),
+      // fall back to localStorage. For each row missing a real name, patch the DB.
+      const rowsMissingName = records.filter(
+        (doc) => !doc.name || !doc.name.trim() || !isRealFileName(doc.name)
+      );
+
+      if (rowsMissingName.length > 0) {
+        // Build a lookup map from the current in-memory files list (most up-to-date)
+        const localNameByTgKey = new Map(
+          filesRef.current
+            .filter((f) => f.source === 'telegram' && isRealFileName(f.name))
+            .map((f) => [f.tgFileId || f.telegramKey, f.name])
+        );
+
+        // Also try localStorage in case filesRef is empty on first load
+        try {
+          const saved = readUserStorage('tDriveFiles', userId);
+          if (saved) {
+            JSON.parse(saved)
+              .filter((f) => f.source === 'telegram' && isRealFileName(f.name))
+              .forEach((f) => {
+                const key = f.tgFileId || f.telegramKey;
+                if (key && !localNameByTgKey.has(key)) {
+                  localNameByTgKey.set(key, f.name);
+                }
+              });
+          }
+        } catch (_) { /* ignore parse errors */ }
+
+        // Backfill in parallel (fire-and-forget, non-blocking)
+        Promise.allSettled(
+          rowsMissingName.map(async (doc) => {
+            const realName = localNameByTgKey.get(doc.file_id);
+            if (!realName) return;
+            await updateFileNameInDb(doc.file_id, userId, realName);
+            // Patch in-memory so this session already uses the real name
+            doc.name = realName;
+          })
+        );
+      }
+      // ─────────────────────────────────────────────────────────────────────────
+
+      const entries = await chunkedPromiseAll(
+        records,
+        (doc) => buildTelegramFileEntry(doc, tgToken),
+        5
+      );
+      const entriesByKey = new Map(entries.map((e) => [getTelegramFileKey(e), e]));
 
       setFiles((prev) => {
         const merged = prev.map((file) => {
-          const dbEntry = file.source === 'telegram' ? entriesByKey.get(getTelegramFileKey(file)) : null;
+          const dbEntry = file.source === 'telegram'
+            ? entriesByKey.get(getTelegramFileKey(file))
+            : null;
           if (!dbEntry) return file;
+
+          // DB name wins when it's a real name; keep the local name otherwise
+          const resolvedName = isRealFileName(dbEntry.name)
+            ? dbEntry.name
+            : isRealFileName(file.name)
+              ? file.name
+              : dbEntry.name; // both are placeholders — use DB value
 
           return {
             ...file,
+            name: resolvedName,
             telegramKey: dbEntry.telegramKey || file.telegramKey,
             tgFileId: dbEntry.tgFileId || file.tgFileId,
-            size: file.size && file.size !== '0 MB' ? normalizeSizeText(file.size) : dbEntry.size,
+            size: (file.size && file.size !== '0 MB') ? normalizeSizeText(file.size) : dbEntry.size,
             url: file.url || dbEntry.url,
             preview: file.preview || dbEntry.preview,
             thumb: file.thumb || dbEntry.thumb,
-            source: 'telegram'
+            source: 'telegram',
           };
         });
 
-        const existingIds = new Set(merged.map((file) => file.source === 'telegram' ? getTelegramFileKey(file) : file.id));
-        const appendOnly = entries.filter((entry) => !existingIds.has(getTelegramFileKey(entry)));
+        const existingKeys = new Set(
+          merged.map((f) => f.source === 'telegram' ? getTelegramFileKey(f) : f.id)
+        );
+        const appendOnly = entries.filter((e) => !existingKeys.has(getTelegramFileKey(e)));
         const finalList = dedupeFilesByKey([...appendOnly, ...merged]);
+
         if (user?.$id) {
           writeUserStorage('tDriveFiles', JSON.stringify(finalList), user.$id);
         }
@@ -466,11 +562,15 @@ export default function App() {
             type = tgFile.mime_type?.includes('image') ? 'image' 
                  : tgFile.mime_type?.includes('video') ? 'video' 
                  : tgFile.mime_type?.includes('audio') ? 'music' : 'doc';
+            // file_name from Telegram is the original filename for documents
             name = tgFile.file_name || `document_${msg.message_id}`;
           } else if (msg.photo && msg.photo.length > 0) {
             tgFile = msg.photo[msg.photo.length - 1]; // Highest resolution
             type = 'image';
-            name = `photo_${msg.message_id}.jpg`;
+            // Photos sent as images (not documents) have no filename in Telegram API
+            // Use caption text if available (trimmed, safe as filename), else descriptive fallback
+            const caption = (msg.caption || '').trim().replace(/[/\\?%*:|"<>]/g, '_').slice(0, 60);
+            name = caption ? `${caption}.jpg` : `photo_${msg.message_id}.jpg`;
           } else if (msg.video) {
             tgFile = msg.video;
             type = 'video';
@@ -478,7 +578,12 @@ export default function App() {
           } else if (msg.audio) {
             tgFile = msg.audio;
             type = 'music';
-            name = tgFile.file_name || `audio_${msg.message_id}.mp3`;
+            // Telegram audio objects may carry title + performer
+            const audioTitle = tgFile.title || tgFile.file_name || '';
+            const audioPerformer = tgFile.performer || '';
+            name = audioTitle
+              ? (audioPerformer ? `${audioPerformer} - ${audioTitle}.mp3` : `${audioTitle}.mp3`)
+              : `audio_${msg.message_id}.mp3`;
           }
 
           if (tgFile) {
@@ -525,7 +630,8 @@ export default function App() {
                 fileId: tgFile.file_id,
                 extension: getExtensionFromName(name) || type,
                 size: sizeStr,
-                userId: user?.$id || 'default'
+                userId: user?.$id || 'default',
+                fileName: name,
               });
               existingIds.add(telegramKey);
             }
