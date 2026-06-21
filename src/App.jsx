@@ -1,4 +1,10 @@
 "use client";
+// ─── Maintenance mode ──────────────────────────────────────────────────────────
+// Set to true to show the maintenance page for ALL routes.
+// Flip to false when the fixes are verified and the app is ready to go live.
+const MAINTENANCE_MODE = true;
+// ──────────────────────────────────────────────────────────────────────────────
+
 import React, { useState, useEffect, useTransition } from 'react';
 import { ThemeContext } from './contexts';
 import { initialFiles } from './data';
@@ -12,6 +18,7 @@ import { SettingsPage } from './components/pages/SettingsPage';
 import { Dashboard } from './components/pages/Dashboard';
 import { LoginPage } from './components/pages/LoginPage';
 import { LandingPage } from './components/pages/LandingPage';
+import { MaintenancePage } from './components/pages/MaintenancePage';
 import { BackgroundBlobs } from './components/ui/Utils';
 import { account, client, getTelegramConfig, getTelegramFileMetaList, saveTelegramFileMeta, deleteTelegramFileMeta, updateFileNameInDb } from './lib/supabase';
 import { createClient } from './utils/supabase/client';
@@ -975,6 +982,13 @@ export default function App() {
   // ----------------------------------------------------
   // RENDER APP Content
   // ----------------------------------------------------
+
+  // Maintenance mode — short-circuits all routing, shows the maintenance page
+  // for every URL. Flip MAINTENANCE_MODE at the top of this file to re-enable.
+  if (MAINTENANCE_MODE) {
+    return <MaintenancePage />;
+  }
+
   if (!sessionChecked) {
     return null;
   }
