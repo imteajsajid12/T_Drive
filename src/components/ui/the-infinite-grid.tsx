@@ -2,12 +2,12 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { 
-  motion, 
-  useMotionValue, 
+import {
+  motion,
+  useMotionValue,
   useSpring,
-  useMotionTemplate, 
-  useAnimationFrame 
+  useMotionTemplate,
+  useAnimationFrame
 } from "framer-motion";
 
 export const Component = () => {
@@ -26,7 +26,7 @@ export const Component = () => {
   const gridOffsetX = useMotionValue(0);
   const gridOffsetY = useMotionValue(0);
 
-  const speedX = 0.5; 
+  const speedX = 0.5;
   const speedY = 0.5;
 
   useAnimationFrame(() => {
@@ -47,13 +47,13 @@ export const Component = () => {
       )}
     >
       <div className="absolute inset-0 z-0 opacity-[0.05]">
-        <GridPattern offsetX={gridOffsetX} offsetY={gridOffsetY} />
+        <GridPattern patternId="demo-grid-base" offsetX={gridOffsetX} offsetY={gridOffsetY} />
       </div>
-      <motion.div 
+      <motion.div
         className="absolute inset-0 z-0 opacity-40"
         style={{ maskImage, WebkitMaskImage: maskImage }}
       >
-        <GridPattern offsetX={gridOffsetX} offsetY={gridOffsetY} />
+        <GridPattern patternId="demo-grid-mask" offsetX={gridOffsetX} offsetY={gridOffsetY} />
       </motion.div>
 
       <div className="absolute inset-0 pointer-events-none z-0">
@@ -72,15 +72,15 @@ export const Component = () => {
             The pattern scrolls infinitely in the background.
           </p>
         </div>
-        
+
         <div className="flex gap-4 pointer-events-auto">
-          <button 
+          <button
               onClick={() => setCount(count + 1)}
               className="px-8 py-3 bg-primary text-primary-foreground font-semibold rounded-md hover:bg-primary/90 transition-all shadow-md active:scale-95"
           >
               Interact ({count})
           </button>
-          <button 
+          <button
               className="px-8 py-3 bg-secondary text-secondary-foreground font-semibold rounded-md hover:bg-secondary/80 transition-all active:scale-95"
           >
               Learn More
@@ -92,6 +92,16 @@ export const Component = () => {
 };
 
 export const InfiniteGridBackdrop = ({ className = "", dark = false }: { className?: string; dark?: boolean }) => {
+  // Unique pattern ID per instance — prevents SVG id collision when multiple
+  // InfiniteGridBackdrop components are mounted simultaneously (e.g. Landing + Dashboard).
+  const patternId = useRef(`grid-${Math.random().toString(36).slice(2, 8)}`).current;
+
+  // Detect touch/mobile devices once after mount. useRef avoids re-renders.
+  const isMobile = useRef(false);
+  useEffect(() => {
+    isMobile.current = window.matchMedia('(pointer: coarse)').matches;
+  }, []);
+
   const gridOffsetX = useMotionValue(0);
   const gridOffsetY = useMotionValue(0);
   const pointerX = useMotionValue(50);
@@ -100,7 +110,7 @@ export const InfiniteGridBackdrop = ({ className = "", dark = false }: { classNa
   const cursorY = useSpring(pointerY, { stiffness: 72, damping: 34, mass: 0.85 });
   const spotlight = useMotionTemplate`radial-gradient(34% 28% at ${cursorX}% ${cursorY}%, ${dark ? 'rgba(167,243,208,0.14)' : 'rgba(167,243,208,0.11)'}, transparent 78%)`;
 
-  // Mouse spotlight tracking — only meaningful on pointer devices
+  // Mouse spotlight — only wires up on pointer devices (desktops)
   const isPointerDevice = typeof window !== 'undefined' && window.matchMedia?.('(pointer: fine)').matches;
 
   useEffect(() => {
@@ -123,26 +133,48 @@ export const InfiniteGridBackdrop = ({ className = "", dark = false }: { classNa
     };
   }, [pointerX, pointerY, isPointerDevice]);
 
-  // Scrolling grid — runs on all devices, willChange:transform keeps it on GPU
+  // Scrolling grid animation — skipped entirely on mobile/touch devices.
+  // iOS Safari re-layouts the SVG every frame when motion values change on
+  // <motion.pattern>, causing severe frame drops. On mobile we render a static
+  // grid instead (see early-return below), so these values never animate.
   useAnimationFrame(() => {
-    const currentX = gridOffsetX.get();
-    const currentY = gridOffsetY.get();
-    gridOffsetX.set((currentX + 0.18) % 40);
-    gridOffsetY.set((currentY + 0.18) % 40);
+    if (isMobile.current) return;
+    gridOffsetX.set((gridOffsetX.get() + 0.18) % 40);
+    gridOffsetY.set((gridOffsetY.get() + 0.18) % 40);
   });
 
+  const baseClass = cn(
+    "absolute inset-0 overflow-hidden pointer-events-none",
+    dark ? "text-white/70" : "text-slate-700/70",
+    className
+  );
+
+  // ── Mobile: static, lightweight grid — no JS animation, no blur orbs ─────────
+  // All animated layers are disabled on touch devices where the compositor
+  // thread can't handle 60fps SVG pattern updates without janking.
+  if (typeof window !== 'undefined' && isMobile.current) {
+    return (
+      <div aria-hidden="true" className={baseClass}>
+        <div className="absolute inset-0 opacity-[0.05]">
+          <svg className="w-full h-full">
+            <defs>
+              <pattern id={patternId} width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth="1" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill={`url(#${patternId})`} />
+          </svg>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Desktop: full animated grid with spotlight and ambient glows ──────────────
   return (
-    <div
-      aria-hidden="true"
-      className={cn(
-        "absolute inset-0 overflow-hidden pointer-events-none",
-        dark ? "text-white/70" : "text-slate-700/70",
-        className
-      )}
-    >
-      {/* Base grid — very subtle, always visible */}
+    <div aria-hidden="true" className={baseClass}>
+      {/* Base grid — very subtle, scrolls via JS motion value */}
       <div className="absolute inset-0 opacity-[0.06]" style={{ willChange: 'transform' }}>
-        <GridPattern offsetX={gridOffsetX} offsetY={gridOffsetY} />
+        <GridPattern patternId={patternId} offsetX={gridOffsetX} offsetY={gridOffsetY} />
       </div>
 
       {/* Masked center-fade layer */}
@@ -154,31 +186,31 @@ export const InfiniteGridBackdrop = ({ className = "", dark = false }: { classNa
           willChange: 'transform',
         }}
       >
-        <GridPattern offsetX={gridOffsetX} offsetY={gridOffsetY} />
+        <GridPattern patternId={`${patternId}-2`} offsetX={gridOffsetX} offsetY={gridOffsetY} />
       </motion.div>
 
-      {/* Mouse spotlight — renders on all devices but only moves on pointer devices */}
+      {/* Mouse spotlight */}
       <motion.div
         className="absolute inset-0 mix-blend-soft-light opacity-45"
         style={{ backgroundImage: spotlight }}
       />
 
-      {/* Ambient glow orbs */}
+      {/* Ambient glow orbs — reduced blur vs original for better perf */}
       <div className="absolute inset-0">
-        <div className="absolute right-[-15%] top-[-15%] h-[40%] w-[40%] rounded-full bg-emerald-300/14 blur-[150px]" />
-        <div className="absolute left-[-10%] bottom-[-18%] h-[40%] w-[40%] rounded-full bg-teal-200/12 blur-[150px]" />
-        <div className="absolute left-[20%] top-[12%] h-[20%] w-[20%] rounded-full bg-green-200/10 blur-[120px]" />
+        <div className="absolute right-[-15%] top-[-15%] h-[40%] w-[40%] rounded-full bg-emerald-300/14 blur-[100px]" />
+        <div className="absolute left-[-10%] bottom-[-18%] h-[40%] w-[40%] rounded-full bg-teal-200/12 blur-[100px]" />
+        <div className="absolute left-[20%] top-[12%] h-[20%] w-[20%] rounded-full bg-green-200/10 blur-[80px]" />
       </div>
     </div>
   );
 };
 
-const GridPattern = ({ offsetX, offsetY }: { offsetX: any, offsetY: any }) => {
+const GridPattern = ({ offsetX, offsetY, patternId }: { offsetX: any, offsetY: any, patternId: string }) => {
   return (
     <svg className="w-full h-full">
       <defs>
         <motion.pattern
-          id="grid-pattern"
+          id={patternId}
           width="40"
           height="40"
           patternUnits="userSpaceOnUse"
@@ -190,11 +222,11 @@ const GridPattern = ({ offsetX, offsetY }: { offsetX: any, offsetY: any }) => {
             fill="none"
             stroke="currentColor"
             strokeWidth="1"
-            className="text-muted-foreground" 
+            className="text-muted-foreground"
           />
         </motion.pattern>
       </defs>
-      <rect width="100%" height="100%" fill="url(#grid-pattern)" />
+      <rect width="100%" height="100%" fill={`url(#${patternId})`} />
     </svg>
   );
 };

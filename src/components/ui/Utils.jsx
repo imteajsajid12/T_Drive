@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
 
@@ -33,29 +33,57 @@ export const ActItem = ({ Icon, title, sub, time, grad, isDark, idx }) => (
   </motion.div>
 );
 
-export const FloatIcons = ({ isDark }) => (
-  <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-    {[
-      { Ic: Ic.Music, x: 8, y: 15, sz: 32, dur: 22, del: 0 },
-      { Ic: Ic.Video, x: 82, y: 12, sz: 28, dur: 26, del: 3 },
-      { Ic: Ic.Image, x: 72, y: 68, sz: 36, dur: 24, del: 5 },
-      { Ic: Ic.Folder, x: 48, y: 35, sz: 34, dur: 20, del: 7 },
-      { Ic: Ic.Star, x: 42, y: 82, sz: 22, dur: 19, del: 9 },
-      { Ic: Ic.Shield, x: 78, y: 38, sz: 26, dur: 27, del: 2.5 },
-    ].map((it, i) => (
-      <motion.div key={i} className={`absolute ${isDark ? 'text-emerald-500/10' : 'text-emerald-500/10'}`} style={{ left: it.x + '%', top: it.y + '%' }} animate={{ y: [0, -60, 50, 0], x: [0, 30, -20, 0], rotate: [0, 180, 360] }} transition={{ duration: it.dur, repeat: Infinity, ease: 'easeInOut', delay: it.del }}>
-        <div style={{ width: it.sz, height: it.sz }}><it.Ic /></div>
-      </motion.div>
-    ))}
-  </div>
-);
+export const FloatIcons = ({ isDark }) => {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => { setIsMobile(window.matchMedia('(pointer: coarse)').matches); }, []);
+  // Completely skip on mobile — 6 continuously rotating elements kill iOS perf
+  if (isMobile) return null;
 
-export const Orbs = () => (
-  <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-    <motion.div className="absolute -top-20 -left-20 w-[55%] h-[55%] rounded-full bg-gradient-to-br from-emerald-400/20 to-green-300/20 blur-[120px]" animate={{ x: [0, 80, -50, 0], y: [0, -90, 60, 0] }} transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }} />
-    <motion.div className="absolute -bottom-20 -right-20 w-[65%] h-[65%] rounded-full bg-gradient-to-tl from-teal-400/18 to-emerald-300/18 blur-[140px]" animate={{ x: [0, -90, 70, 0], y: [0, 60, -70, 0] }} transition={{ duration: 26, repeat: Infinity, ease: 'easeInOut' }} />
-  </div>
-);
+  return (
+    <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+      {[
+        { Ic: Ic.Music, x: 8, y: 15, sz: 32, dur: 22, del: 0 },
+        { Ic: Ic.Video, x: 82, y: 12, sz: 28, dur: 26, del: 3 },
+        { Ic: Ic.Image, x: 72, y: 68, sz: 36, dur: 24, del: 5 },
+        { Ic: Ic.Folder, x: 48, y: 35, sz: 34, dur: 20, del: 7 },
+        { Ic: Ic.Star, x: 42, y: 82, sz: 22, dur: 19, del: 9 },
+        { Ic: Ic.Shield, x: 78, y: 38, sz: 26, dur: 27, del: 2.5 },
+      ].map((it, i) => (
+        <motion.div key={i} className="absolute text-emerald-500/10" style={{ left: it.x + '%', top: it.y + '%' }} animate={{ y: [0, -60, 50, 0], x: [0, 30, -20, 0], rotate: [0, 180, 360] }} transition={{ duration: it.dur, repeat: Infinity, ease: 'easeInOut', delay: it.del }}>
+          <div style={{ width: it.sz, height: it.sz }}><it.Ic /></div>
+        </motion.div>
+      ))}
+    </div>
+  );
+};
+
+export const Orbs = () => {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => { setIsMobile(window.matchMedia('(pointer: coarse)').matches); }, []);
+
+  return (
+    <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+      {/* On mobile: static orbs, no animation. blur reduced from 120/140px to 60px — large blurs force
+          iOS Safari to paint on the main thread on every scroll frame. */}
+      <motion.div
+        className="absolute -top-20 -left-20 w-[55%] h-[55%] rounded-full bg-gradient-to-br from-emerald-400/20 to-green-300/20 blur-[60px] md:blur-[120px]"
+        {...(!isMobile && {
+          animate: { x: [0, 80, -50, 0], y: [0, -90, 60, 0] },
+          transition: { duration: 20, repeat: Infinity, ease: 'easeInOut' },
+        })}
+        style={{ willChange: isMobile ? 'auto' : 'transform' }}
+      />
+      <motion.div
+        className="absolute -bottom-20 -right-20 w-[65%] h-[65%] rounded-full bg-gradient-to-tl from-teal-400/18 to-emerald-300/18 blur-[60px] md:blur-[140px]"
+        {...(!isMobile && {
+          animate: { x: [0, -90, 70, 0], y: [0, 60, -70, 0] },
+          transition: { duration: 26, repeat: Infinity, ease: 'easeInOut' },
+        })}
+        style={{ willChange: isMobile ? 'auto' : 'transform' }}
+      />
+    </div>
+  );
+};
 
 export const Toast = ({ msg, type, onClose }) => (
   <motion.div initial={{ opacity: 0, y: 40, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 40, scale: 0.9 }} transition={{ type: 'spring', damping: 22, stiffness: 300 }} className={`fixed bottom-32 md:bottom-8 left-1/2 -translate-x-1/2 px-6 py-3.5 rounded-2xl shadow-2xl z-50 flex items-center gap-3 backdrop-blur-xl ${type === 'success' ? 'bg-emerald-500/90' : 'bg-red-500/90'} text-white`}>

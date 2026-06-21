@@ -2,13 +2,38 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Ic } from '../../icons';
-import { chartData } from '../../data';
 import { StatCard } from '../ui/StatCard';
 import { ChartBox } from '../ui/ChartBox';
 import { QuickAction } from '../ui/QuickAction';
 import { FileCard } from '../ui/FileCard';
 import { InfiniteGridBackdrop } from '../ui/the-infinite-grid';
 import { useRouter } from 'next/navigation';
+
+// Defined outside component — recreated every render otherwise, causing child re-renders
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.05, delayChildren: 0.05 } }
+};
+const itemVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 320, damping: 26 } }
+};
+const dayNameMap = {
+  Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday',
+  Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday'
+};
+
+const computeSize = (sizeStr) => {
+  if (!sizeStr) return 0;
+  const s = sizeStr.toString().toUpperCase();
+  const val = parseFloat(s);
+  if (isNaN(val)) return 0;
+  if (s.includes('GB')) return val * 1024;
+  if (s.includes('MB')) return val;
+  if (s.includes('KB')) return val / 1024;
+  if (s.includes('B')) return val / (1024 * 1024);
+  return val / (1024 * 1024);
+};
 
 export const Dashboard = ({
   isDark,
@@ -27,110 +52,98 @@ export const Dashboard = ({
   onConfigureTelegram
 }) => {
   const router = useRouter();
-  const [cm, setCm] = useState(null); // context menu file id
-  const [isGrid, setIsGrid] = useState(true); // grid or list view state
+  const [cm, setCm] = useState(null);
+  const [isGrid, setIsGrid] = useState(true);
   const [filterType, setFilterType] = useState('all');
   const [showFilter, setShowFilter] = useState(false);
   const [nameQuery, setNameQuery] = useState(q || '');
   const [minSizeKB, setMinSizeKB] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  // ── Multi-select state ────────────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState(new Set());
   const isSelectMode = selectedIds.size > 0;
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || 'there';
 
-  const computeSize = (sizeStr) => {
-    if (!sizeStr) return 0;
-    const s = sizeStr.toString().toUpperCase();
-    const val = parseFloat(s);
-    if (isNaN(val)) return 0;
-    if (s.includes('GB')) return val * 1024;
-    if (s.includes('MB')) return val;
-    if (s.includes('KB')) return val / 1024;
-    if (s.includes('B')) return val / (1024 * 1024);
-    // Raw numeric values are interpreted as bytes.
-    return val / (1024 * 1024);
-  };
-  const totalMB = files.reduce((acc, f) => acc + computeSize(f.size), 0);
-  const usedSpaceStr = totalMB > 1024 ? (totalMB / 1024).toFixed(1) + ' GB' : totalMB.toFixed(1) + ' MB';
-  const sharedCount = files.filter(f => f.star).length;
-  
-  // Storage usage details
-  const maxStorageMB = 100 * 1024; // 100 GB
-  const storagePercent = Math.min((totalMB / maxStorageMB) * 100, 100).toFixed(0);
-  const strokeDashoffset = 251.2 - (251.2 * (storagePercent / 100));
+  // ── Storage stats — memoized so they only recompute when `files` changes ──────
+  const { usedSpaceStr, sharedCount, storagePercent, strokeDashoffset, storageBreakdown } = useMemo(() => {
+    const totalMB = files.reduce((acc, f) => acc + computeSize(f.size), 0);
+    const usedSpaceStr = totalMB > 1024 ? (totalMB / 1024).toFixed(1) + ' GB' : totalMB.toFixed(1) + ' MB';
+    const sharedCount = files.filter(f => f.star).length;
+    const maxStorageMB = 100 * 1024;
+    const storagePercent = Math.min((totalMB / maxStorageMB) * 100, 100).toFixed(0);
+    const strokeDashoffset = 251.2 - (251.2 * (parseFloat(storagePercent) / 100));
 
-  const categorySizes = { image: 0, video: 0, doc: 0, music: 0, other: 0 };
-  files.forEach(f => {
-    const size = computeSize(f.size);
-    if (f.type in categorySizes) categorySizes[f.type] += size;
-    else categorySizes.other += size;
-  });
+    const categorySizes = { image: 0, video: 0, doc: 0, music: 0, other: 0 };
+    files.forEach(f => {
+      const size = computeSize(f.size);
+      if (f.type in categorySizes) categorySizes[f.type] += size;
+      else categorySizes.other += size;
+    });
 
-  const getStorageDetails = (type, label, color, gradient) => {
-    const size = categorySizes[type];
-    const sizeStr = size > 1024 ? (size / 1024).toFixed(1) + ' GB' : size.toFixed(1) + ' MB';
-    const percent = totalMB > 0 ? ((size / totalMB) * 100).toFixed(0) : 0;
-    return { l: label, v: sizeStr, p: percent, c: color, g: gradient };
-  };
+    const mkDetail = (type, label, color, gradient) => {
+      const size = categorySizes[type];
+      const sizeStr = size > 1024 ? (size / 1024).toFixed(1) + ' GB' : size.toFixed(1) + ' MB';
+      const percent = totalMB > 0 ? ((size / totalMB) * 100).toFixed(0) : 0;
+      return { l: label, v: sizeStr, p: percent, c: color, g: gradient };
+    };
 
-  const storageBreakdown = [
-    getStorageDetails('image', 'Images', 'bg-emerald-500', 'from-emerald-400 to-emerald-500'),
-    getStorageDetails('video', 'Videos', 'bg-teal-500', 'from-teal-400 to-teal-500'),
-    getStorageDetails('doc', 'Docs', 'bg-cyan-500', 'from-cyan-400 to-cyan-500'),
-    getStorageDetails('music', 'Music', 'bg-blue-500', 'from-blue-400 to-blue-500'),
-    getStorageDetails('other', 'Other', 'bg-slate-500', 'from-slate-400 to-slate-500')
-  ];
+    const storageBreakdown = [
+      mkDetail('image', 'Images', 'bg-emerald-500', 'from-emerald-400 to-emerald-500'),
+      mkDetail('video', 'Videos', 'bg-teal-500', 'from-teal-400 to-teal-500'),
+      mkDetail('doc', 'Docs', 'bg-cyan-500', 'from-cyan-400 to-cyan-500'),
+      mkDetail('music', 'Music', 'bg-blue-500', 'from-blue-400 to-blue-500'),
+      mkDetail('other', 'Other', 'bg-slate-500', 'from-slate-400 to-slate-500'),
+    ];
 
-  // Dynamic Chart Data mapping file sizes added each day
-  const generateChartData = () => {
+    return { usedSpaceStr, sharedCount, storagePercent, strokeDashoffset, storageBreakdown };
+  }, [files]);
+
+  // ── Chart data — only recompute when files list changes ──────────────────────
+  const dynamicChartData = useMemo(() => {
     const data = [
       { name: 'Mon', uv: 0 }, { name: 'Tue', uv: 0 }, { name: 'Wed', uv: 0 },
-      { name: 'Thu', uv: 0 }, { name: 'Fri', uv: 0 }, { name: 'Sat', uv: 0 }, { name: 'Sun', uv: 0 }
+      { name: 'Thu', uv: 0 }, { name: 'Fri', uv: 0 }, { name: 'Sat', uv: 0 }, { name: 'Sun', uv: 0 },
     ];
     files.forEach(f => {
-       const d = new Date(f.date);
-       if (!isNaN(d.getTime())) {
-          let dayIdx = d.getDay() === 0 ? 6 : d.getDay() - 1;
-          data[dayIdx].uv += computeSize(f.size);
-       }
+      const d = new Date(f.date);
+      if (!isNaN(d.getTime())) {
+        const dayIdx = d.getDay() === 0 ? 6 : d.getDay() - 1;
+        data[dayIdx].uv += computeSize(f.size);
+      }
     });
     return data.map(d => ({ ...d, uv: Math.max(10, Math.round(d.uv)) }));
-  };
-  const dynamicChartData = generateChartData();
-  const dayNameMap = {
-    Mon: 'Monday',
-    Tue: 'Tuesday',
-    Wed: 'Wednesday',
-    Thu: 'Thursday',
-    Fri: 'Friday',
-    Sat: 'Saturday',
-    Sun: 'Sunday'
-  };
+  }, [files]);
 
-  const stats = [
+  const stats = useMemo(() => [
     { title: 'Total Files', val: files.length, sub: 'In your drive', color: 'emerald', ic: Ic.FileText },
     { title: 'Used Space', val: usedSpaceStr, sub: 'of 100 GB', color: 'blue', ic: Ic.HardDrive },
     { title: 'Starred', val: sharedCount, sub: 'important files', color: 'purple', ic: Ic.Star },
-  ];
+  ], [files.length, usedSpaceStr, sharedCount]);
 
-  const filt = files.filter(f =>  
-    (cat === 'home' || cat === 'files' || f.type === cat) &&
-    (filterType === 'all' || f.type === filterType) &&
-    f.name.toLowerCase().includes((q || '').toLowerCase()) &&
-    (minSizeKB === '' || (() => {
-      const sizeMB = computeSize(f.size); // computeSize returns MB
-      const minMB = parseFloat(minSizeKB) / 1024; // convert KB -> MB
-      return !isNaN(minMB) ? sizeMB >= minMB : true;
-    })())
+  // ── File filtering — memoized, recomputes only when relevant deps change ──────
+  const filt = useMemo(() =>
+    files.filter(f =>
+      (cat === 'home' || cat === 'files' || f.type === cat) &&
+      (filterType === 'all' || f.type === filterType) &&
+      f.name.toLowerCase().includes((q || '').toLowerCase()) &&
+      (minSizeKB === '' || (() => {
+        const sizeMB = computeSize(f.size);
+        const minMB = parseFloat(minSizeKB) / 1024;
+        return !isNaN(minMB) ? sizeMB >= minMB : true;
+      })())
+    ),
+    [files, cat, filterType, q, minSizeKB]
   );
 
-  const sortedByRecent = [...filt].sort((a, b) => {
-    const aTime = new Date(a?.date || 0).getTime();
-    const bTime = new Date(b?.date || 0).getTime();
-    return (isNaN(bTime) ? 0 : bTime) - (isNaN(aTime) ? 0 : aTime);
-  });
   const isHomeRecent = cat === 'home' && !q;
+
+  const sortedByRecent = useMemo(() =>
+    [...filt].sort((a, b) => {
+      const aTime = new Date(a?.date || 0).getTime();
+      const bTime = new Date(b?.date || 0).getTime();
+      return (isNaN(bTime) ? 0 : bTime) - (isNaN(aTime) ? 0 : aTime);
+    }),
+    [filt]
+  );
   const PAGE_SIZE = 24;
   const shownFiles = isHomeRecent ? sortedByRecent : filt;
   const totalPages = Math.max(1, Math.ceil(shownFiles.length / PAGE_SIZE));
@@ -168,8 +181,6 @@ export const Dashboard = ({
   const goToPage = useCallback((nextPage) => {
     setCurrentPage(Math.max(1, Math.min(totalPages, nextPage)));
   }, [totalPages]);
-
-  const star = (id) => { setFiles(files.map(f => f.id === id ? { ...f, star: !f.star } : f)); setCm(null); };
 
   // ── Multi-select handlers ─────────────────────────────────────────────────────
   const toggleSelectFile = useCallback((id) => {
@@ -266,19 +277,6 @@ export const Dashboard = ({
   }, [selectedIds, onDelete, onDeleteMany, clearSelection, isDark]);
   const telegramLocked = !telegramReady;
   const telegramActionsDisabled = telegramConfigLoading || telegramLocked;
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { 
-      opacity: 1, 
-      transition: { staggerChildren: 0.1, delayChildren: 0.1 } 
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
-  };
 
   return (
     <motion.div 

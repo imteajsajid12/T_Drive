@@ -82,27 +82,43 @@
   }
   body {
     margin: 0;
+    /* Prevent double-tap zoom delay on iOS — makes tap interactions instant */
+    touch-action: manipulation;
   }
 
-  /* ── Smooth scroll performance ─────────────────────────────────────────────
-     iOS Safari momentum scrolling + prevent scroll-blocking on touch devices.
-     `scroll-behavior: smooth` only for anchor navigation; we keep inertia
-     scrolling native so the browser can run it off the main thread.          */
+  /* Smooth anchor scroll on desktop; iOS gets native momentum scrolling which
+     the browser already handles off-thread — no JS needed.                    */
   html {
     scroll-behavior: smooth;
-    -webkit-overflow-scrolling: touch;
   }
 
-  /* Prevent subpixel aliasing on animated elements */
-  .motion-safe * {
+  /* Text rendering */
+  body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Fixed background layers get their own GPU layer — keeps scroll compositor
-     from having to repaint them on every frame.                               */
+  /* Main scrollable dashboard panel — own stacking context so fixed overlays
+     (modals, toasts) don't cause the scroll container to repaint.             */
+  #scroll-container {
+    /* Promote to compositor layer so iOS scroll stays off the main thread */
+    transform: translateZ(0);
+    /* Prevent horizontal overflow bounce on iOS without disabling vertical scroll */
+    overscroll-behavior-x: none;
+  }
+
+  /* Fixed decorative layers — GPU layer prevents repaint on every scroll frame */
   .pointer-events-none.fixed {
     will-change: transform;
     transform: translateZ(0);
+  }
+
+  /* Reduce motion: honour the OS preference by disabling all transitions/animations */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
