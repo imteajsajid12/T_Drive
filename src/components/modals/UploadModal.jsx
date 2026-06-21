@@ -36,21 +36,6 @@ export const UploadModal = ({ open, close, isDark, onUpload, user, disabled = fa
     return { tgToken, tgChatId };
   };
 
-  const sendTelegramStart = async (tgToken, tgChatId) => {
-    if (!tgToken || !tgChatId) return false;
-
-    const startBody = new FormData();
-    startBody.append('chat_id', tgChatId);
-    startBody.append('text', '/start');
-
-    const response = await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
-      method: 'POST',
-      body: startBody
-    });
-
-    return response.ok;
-  };
-
   const handleFiles = (fs) => {
     fs.forEach(async (f) => {
       const id = Date.now() + Math.random();
@@ -62,15 +47,6 @@ export const UploadModal = ({ open, close, isDark, onUpload, user, disabled = fa
       const isOversizedForTg = f.size > 50 * 1024 * 1024;
 
       if (tgToken && tgChatId && !isOversizedForTg) {
-        try {
-          const started = await sendTelegramStart(tgToken, tgChatId);
-          if (!started) {
-            console.warn('Telegram /start request was not acknowledged; continuing with file upload.');
-          }
-        } catch (err) {
-          console.error('Error sending /start message:', err);
-        }
-
         // Send to Telegram
         try {
           const formData = new FormData();
@@ -171,7 +147,7 @@ export const UploadModal = ({ open, close, isDark, onUpload, user, disabled = fa
         fileId: fileMetaId,
         extension: getFileExtension(f.name) || tp,
         size: normalizeSizeText(f.size),
-        userId: user?.$id || 'default',
+        userId: user?.$id || user?.id || 'unknown',
         fileName: f.name,
       });
     } catch (err) {

@@ -265,6 +265,112 @@ export const getTelegramFileMetaList = async (userId) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// login_logs table helpers
+//
+// Run this SQL once in the Supabase SQL editor to create the table:
+//
+//   CREATE TABLE IF NOT EXISTS login_logs (
+//     id          bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+//     created_at  timestamptz DEFAULT now(),
+//     user_id     text NOT NULL,
+//     email       text,
+//     event       text DEFAULT 'login',   -- 'login' | 'logout'
+//     user_agent  text,
+//     status      text DEFAULT 'success'  -- 'success' | 'failed'
+//   );
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Returns the inserted row, or null on no-table, or { rlsError: true } on permission denied.
+export const saveLoginLog = async ({ userId, email, event = 'login', status = 'success' }) => {
+  if (!userId) return null;
+  try {
+    const { data, error } = await supabase
+      .from('login_logs')
+      .insert({
+        user_id: String(userId),
+        email: email || null,
+        event,
+        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+        status,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '42P01') {
+        console.warn('[saveLoginLog] login_logs table not found.');
+        return null;
+      }
+      // RLS violation — Supabase returns code 42501 or PGRST301
+      if (error.code === '42501' || error.code === 'PGRST301' || (error.message || '').includes('row-level security')) {
+        console.error('[saveLoginLog] RLS is blocking the insert. Run: ALTER TABLE login_logs DISABLE ROW LEVEL SECURITY; in Supabase SQL editor.');
+        return { rlsError: true };
+      }
+      console.error('[saveLoginLog] error:', error);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.error('[saveLoginLog] unexpected error:', err);
+    return null;
+  }
+};
+
+// Returns rows array, null if RLS blocks the query, or [] for empty table.
+export const getLoginLogs = async (userId, limit = 50) => {
+  if (!userId) return [];
+  try {
+    const { data, error } = await supabase
+      .from('login_logs')
+      .select('*')
+      .eq('user_id', String(userId))
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      if (error.code === '42P01') {
+        console.warn('[getLoginLogs] login_logs table not found.');
+        return null; // null = table missing
+      }
+      if (error.code === '42501' || error.code === 'PGRST301' || (error.message || '').includes('row-level security')) {
+        console.error('[getLoginLogs] RLS is blocking reads. Run: ALTER TABLE login_logs DISABLE ROW LEVEL SECURITY; in Supabase SQL editor.');
+        return null; // null = permission denied
+      }
+      console.error('[getLoginLogs] error:', error);
+      return null;
+    }
+    return data || [];
+  } catch (err) {
+    console.error('[getLoginLogs] unexpected error:', err);
+    return null;
+  }
+};
+
+export const deleteLoginLog = async (id) => {
+  if (!id) return false;
+  try {
+    const { error } = await supabase.from('login_logs').delete().eq('id', id);
+    if (error) { console.warn('[deleteLoginLog]', error); return false; }
+    return true;
+  } catch (err) {
+    console.warn('[deleteLoginLog] unexpected error:', err);
+    return false;
+  }
+};
+
+export const clearAllLoginLogs = async (userId) => {
+  if (!userId) return false;
+  try {
+    const { error } = await supabase.from('login_logs').delete().eq('user_id', String(userId));
+    if (error) { console.warn('[clearAllLoginLogs]', error); return false; }
+    return true;
+  } catch (err) {
+    console.warn('[clearAllLoginLogs] unexpected error:', err);
+    return false;
+  }
+};
+
 /**
  * Delete a file's metadata row from the `storage` table.
  * Matches on file_id + user_id so we never delete another user's row.

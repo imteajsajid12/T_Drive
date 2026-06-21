@@ -6,7 +6,7 @@ export const MobNav = ({ cat, setCat, onUp, isDark, telegramReady = true, telegr
     { id: 'home', label: 'Home', Icon: Ic.Home },
     { id: 'files', label: 'Files', Icon: Ic.Folder },
     { id: 'upload', label: 'Upload', Icon: Ic.Upload, act: true },
-    { id: 'analytics', label: 'Stats', Icon: Ic.BarChart },
+    { id: 'loginlog', label: 'Log', Icon: Ic.Activity },
     { id: 'settings', label: 'Settings', Icon: Ic.Settings },
   ];
   const uploadDisabled = telegramConfigLoading || !telegramReady;

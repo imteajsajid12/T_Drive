@@ -10,6 +10,7 @@ export function generateStaticParams() {
     { slug: ['dashboard', 'documents'] },
     { slug: ['analytics'] },
     { slug: ['settings'] },
+    { slug: ['login-log'] },
     { slug: ['login'] },
     { slug: ['registration'] },
   ];

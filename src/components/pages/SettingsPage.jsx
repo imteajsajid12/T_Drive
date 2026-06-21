@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
 import { account, getTelegramConfig, saveTelegramConfig } from '../../lib/supabase';
 import { toast } from 'sonner';
+import Swal from 'sweetalert2';
 
 export const SettingsPage = ({ isDark, user, setUser }) => {
   const [tgName, setTgName] = useState('@t-drive_bot');
@@ -21,6 +22,9 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
+  // Telegram chat-ID auto-detect
+  const [isFetchingChatId, setIsFetchingChatId] = useState(false);
 
   const displayName = fullName.trim() || user?.name?.trim() || 'Your Name';
   const displayInitial = displayName.slice(0, 1).toUpperCase();
@@ -82,6 +86,98 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
     }
   }, [user]);
 
+  const swalBase = () => ({
+    background: isDark ? '#1e293b' : '#ffffff',
+    color: isDark ? '#f1f5f9' : '#1e293b',
+    customClass: {
+      popup: 'rounded-3xl shadow-2xl',
+      confirmButton: 'px-6 py-2.5 rounded-xl font-bold text-white',
+      cancelButton: 'px-6 py-2.5 rounded-xl font-bold',
+    },
+  });
+
+  const fetchChatIdFromTelegram = async () => {
+    if (!tgToken.trim()) {
+      Swal.fire({
+        title: 'Token Required',
+        text: 'Enter your Bot API Token first, then click Auto-detect.',
+        icon: 'warning',
+        iconColor: '#f59e0b',
+        confirmButtonColor: '#0088cc',
+        confirmButtonText: 'OK',
+        ...swalBase(),
+      });
+      return;
+    }
+
+    setIsFetchingChatId(true);
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${tgToken.trim()}/getUpdates`);
+      const data = await res.json();
+
+      if (!data.ok) {
+        Swal.fire({
+          title: 'Invalid Bot Token',
+          text: data.description || 'Could not connect to Telegram. Double-check your bot token.',
+          icon: 'error',
+          iconColor: '#ef4444',
+          confirmButtonColor: '#ef4444',
+          confirmButtonText: 'OK',
+          ...swalBase(),
+        });
+        return;
+      }
+
+      const update = data.result?.find(u => u.message?.chat?.id);
+
+      if (update) {
+        const chatId = String(update.message.chat.id);
+        const chatLabel =
+          update.message.chat.first_name ||
+          update.message.chat.title ||
+          update.message.chat.username ||
+          'your chat';
+        setTgChatId(chatId);
+        Swal.fire({
+          title: 'Chat ID Detected!',
+          html: `
+            <p style="font-size:13px;margin-bottom:10px;">Your Chat ID has been auto-filled:</p>
+            <div style="font-family:monospace;font-size:22px;font-weight:900;color:#0088cc;background:${isDark ? '#0f172a' : '#eff6ff'};padding:10px 18px;border-radius:12px;letter-spacing:2px;">${chatId}</div>
+            <p style="font-size:11px;margin-top:10px;opacity:.6;">From: ${chatLabel}</p>
+          `,
+          icon: 'success',
+          iconColor: '#10b981',
+          confirmButtonColor: '#0088cc',
+          confirmButtonText: 'Great!',
+          ...swalBase(),
+        });
+      } else {
+        Swal.fire({
+          title: 'No Messages Found',
+          html: `
+            <p style="font-size:13px;margin-bottom:12px;">Your bot hasn't received any messages yet.</p>
+            <p style="font-size:13px;font-weight:700;margin-bottom:8px;">To get your Chat ID:</p>
+            <ol style="text-align:left;font-size:13px;padding-left:18px;line-height:2;">
+              <li>Open <strong>Telegram</strong></li>
+              <li>Search for your bot: <strong>${tgName || 'your bot'}</strong></li>
+              <li>Send any message, e.g. <code style="background:${isDark ? '#0f172a' : '#f1f5f9'};padding:1px 6px;border-radius:4px;">/start</code></li>
+              <li>Click <strong>Auto-detect Chat ID</strong> again</li>
+            </ol>
+          `,
+          icon: 'info',
+          iconColor: '#0088cc',
+          confirmButtonColor: '#0088cc',
+          confirmButtonText: 'Got it!',
+          ...swalBase(),
+        });
+      }
+    } catch (err) {
+      toast.error('Network error — could not reach Telegram API.');
+    } finally {
+      setIsFetchingChatId(false);
+    }
+  };
+
   const saveTelegramConfigHandler = async () => {
     if (!tgName || !tgToken || !tgChatId) {
       toast.error('Please fill in all Telegram configuration fields.');
@@ -97,30 +193,44 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
         chatId: tgChatId
       };
 
-      // Save to Appwrite
       await saveTelegramConfig(userId, config);
-      
-      // Also save to localStorage as backup
+
       writeUserStorage('tgBotName', tgName, userId);
       writeUserStorage('tgBotToken', tgToken, userId);
       writeUserStorage('tgChatId', tgChatId, userId);
-      
+
       setConfigSource('supabase');
       setIsSaved(true);
-      toast.success('Telegram configuration saved to Appwrite!');
+
+      // Notify App.jsx to re-check config readiness and kick off a fresh sync
+      window.dispatchEvent(new Event('telegramConfigUpdated'));
+      window.dispatchEvent(new Event('telegramFullSyncRequested'));
+
+      Swal.fire({
+        title: 'Bot Connected!',
+        html: `
+          <p style="font-size:13px;margin-bottom:8px;">Your Telegram bot is now connected to T-Drive.</p>
+          <p style="font-size:12px;opacity:.6;">Bot: <strong>${tgName}</strong> &nbsp;|&nbsp; Chat ID: <strong>${tgChatId}</strong></p>
+        `,
+        icon: 'success',
+        iconColor: '#10b981',
+        confirmButtonColor: '#0088cc',
+        confirmButtonText: 'Start Using',
+        ...swalBase(),
+      });
+
       setTimeout(() => setIsSaved(false), 2000);
     } catch (err) {
       console.error('Error saving Telegram config:', err);
-      
-      // Fallback: save to localStorage
+
       const userId = user?.$id || 'guest';
       writeUserStorage('tgBotName', tgName, userId);
       writeUserStorage('tgBotToken', tgToken, userId);
       writeUserStorage('tgChatId', tgChatId, userId);
-      
+
       setConfigSource('local');
       setIsSaved(true);
-      toast.warning('Saved to local storage (Appwrite connection issue)');
+      toast.warning('Saved to local storage (database connection issue)');
       setTimeout(() => setIsSaved(false), 2000);
     } finally {
       setIsSaving(false);
@@ -304,15 +414,39 @@ export const SettingsPage = ({ isDark, user, setUser }) => {
             />
           </div>
           <div>
-            <label className={`block text-xs font-bold mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Your Telegram Chat ID (Get from @userinfobot)</label>
-            <input 
-              type="text" 
-              placeholder="e.g. 123456789"
+            <div className="flex items-center justify-between mb-1.5">
+              <label className={`text-xs font-bold ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Your Telegram Chat ID</label>
+              <motion.button
+                type="button"
+                onClick={fetchChatIdFromTelegram}
+                disabled={isLoading || isFetchingChatId}
+                whileHover={!isLoading && !isFetchingChatId ? { scale: 1.03 } : {}}
+                whileTap={!isLoading && !isFetchingChatId ? { scale: 0.97 } : {}}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-bold transition-all
+                  ${isFetchingChatId ? 'opacity-70 cursor-wait' : ''}
+                  ${isDark ? 'bg-[#0088cc]/20 text-[#38bdf8] hover:bg-[#0088cc]/30 border border-[#0088cc]/30' : 'bg-[#e8f4fc] text-[#0088cc] hover:bg-[#d0eaf8] border border-[#0088cc]/20'}`}
+              >
+                {isFetchingChatId ? (
+                  <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity }} className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full" />
+                ) : (
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M20.665 3.717l-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701h-.002l.002.001-.314 4.692c.46 0 .663-.211.921-.46l2.211-2.15 4.599 3.397c.848.467 1.457.227 1.668-.785l3.019-14.228c.309-1.239-.473-1.8-1.282-1.434z"/></svg>
+                )}
+                {isFetchingChatId ? 'Detecting…' : 'Auto-detect Chat ID'}
+              </motion.button>
+            </div>
+            <input
+              type="text"
+              placeholder="e.g. 123456789  — or click Auto-detect above"
               value={tgChatId}
               onChange={(e) => setTgChatId(e.target.value)}
-              disabled={isLoading}
-              className={`w-full px-4 py-2.5 rounded-xl text-sm font-mono tracking-wider outline-none transition-all ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${isDark ? 'bg-gray-700/50 border border-gray-600 text-white focus:border-indigo-500' : 'bg-gray-50 border border-gray-200 text-gray-800 focus:border-indigo-500'}`} 
+              disabled={isLoading || isFetchingChatId}
+              className={`w-full px-4 py-2.5 rounded-xl text-sm font-mono tracking-wider outline-none transition-all
+                ${isLoading || isFetchingChatId ? 'opacity-50 cursor-not-allowed' : ''}
+                ${isDark ? 'bg-gray-700/50 border border-gray-600 text-white focus:border-indigo-500' : 'bg-gray-50 border border-gray-200 text-gray-800 focus:border-indigo-500'}`}
             />
+            <p className={`text-[10px] mt-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              Enter your token above, then click <strong>Auto-detect</strong> — or get it manually from <strong>@userinfobot</strong> on Telegram.
+            </p>
           </div>
           <div className="pt-2">
             <motion.button 

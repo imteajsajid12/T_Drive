@@ -1,8 +1,8 @@
 "use client";
 // ─── Maintenance mode ──────────────────────────────────────────────────────────
-// Set to true to show the maintenance page for ALL routes.
-// Flip to false when the fixes are verified and the app is ready to go live.
-const MAINTENANCE_MODE = true;
+// Controlled via .env.local  →  NEXT_PUBLIC_MAINTENANCE_MODE=true | false
+// Change the value and restart the dev server (or redeploy) to toggle.
+const MAINTENANCE_MODE = process.env.NEXT_PUBLIC_MAINTENANCE_MODE === 'true';
 // ──────────────────────────────────────────────────────────────────────────────
 
 import React, { useState, useEffect, useTransition } from 'react';
@@ -15,12 +15,13 @@ import { UploadModal } from './components/modals/UploadModal';
 import { MediaPreview } from './components/modals/MediaPreview';
 import { AnalyticsPage } from './components/pages/AnalyticsPage';
 import { SettingsPage } from './components/pages/SettingsPage';
+import { LoginLogPage } from './components/pages/LoginLogPage';
 import { Dashboard } from './components/pages/Dashboard';
 import { LoginPage } from './components/pages/LoginPage';
 import { LandingPage } from './components/pages/LandingPage';
 import { MaintenancePage } from './components/pages/MaintenancePage';
 import { BackgroundBlobs } from './components/ui/Utils';
-import { account, client, getTelegramConfig, getTelegramFileMetaList, saveTelegramFileMeta, deleteTelegramFileMeta, updateFileNameInDb } from './lib/supabase';
+import { account, client, getTelegramConfig, getTelegramFileMetaList, saveTelegramFileMeta, deleteTelegramFileMeta, updateFileNameInDb, saveLoginLog } from './lib/supabase';
 import { createClient } from './utils/supabase/client';
 const supabase = createClient();
 import { normalizeSizeText } from './utils';
@@ -56,7 +57,8 @@ export default function App() {
     '/dashboard/music': 'music',
     '/dashboard/documents': 'doc',
     '/analytics': 'analytics',
-    '/settings': 'settings'
+    '/settings': 'settings',
+    '/login-log': 'loginlog',
   };
   const catToRoute = {
     home: '/dashboard',
@@ -66,7 +68,8 @@ export default function App() {
     music: '/dashboard/music',
     doc: '/dashboard/documents',
     analytics: '/analytics',
-    settings: '/settings'
+    settings: '/settings',
+    loginlog: '/login-log',
   };
 
   const getCatFromPath = (path) => {
@@ -147,8 +150,12 @@ export default function App() {
 
     checkTelegramConfig();
 
+    const onConfigUpdated = () => { cancelled = false; checkTelegramConfig(); };
+    window.addEventListener('telegramConfigUpdated', onConfigUpdated);
+
     return () => {
       cancelled = true;
+      window.removeEventListener('telegramConfigUpdated', onConfigUpdated);
     };
   }, [auth, user?.$id]);
 
@@ -331,7 +338,7 @@ export default function App() {
   }, [auth, user?.$id]);
 
   useEffect(() => {
-    if (!auth) return;
+    if (!auth || !user?.$id) return;
 
     const refreshTelegramMedia = async () => {
       const { tgToken } = await loadTelegramCredentials();
@@ -375,14 +382,14 @@ export default function App() {
     };
 
     refreshTelegramMedia();
-  }, [auth]);
+  }, [auth, user?.$id]);
 
   useEffect(() => {
-    if (!auth) return;
+    if (!auth || !user?.$id) return;
 
     const loadTelegramFilesFromDatabase = async () => {
       const { tgToken } = await loadTelegramCredentials();
-      const userId = user?.$id || 'default';
+      const userId = user.$id;
       const records = await getTelegramFileMetaList(userId);
       if (!records.length) return;
 
@@ -477,7 +484,7 @@ export default function App() {
     };
 
     loadTelegramFilesFromDatabase();
-  }, [auth]);
+  }, [auth, user?.$id]);
 
   // Save files to local storage whenever they change
   useEffect(() => {
@@ -514,20 +521,20 @@ export default function App() {
 
   // Telegram Auto-Sync Logic
   useEffect(() => {
-    if (!auth) return;
+    if (!auth || !user?.$id) return;
 
     // Full sync function that fetches ALL messages from Telegram
     const fullSyncWithTelegram = async (clearOffset = false) => {
-      const { tgToken } = await loadTelegramCredentials();
+      const { tgToken, tgChatId } = await loadTelegramCredentials();
 
-      if (!tgToken) {
-        console.warn('No Telegram bot token found');
+      if (!tgToken || !tgChatId) {
+        console.warn('No Telegram bot token or chat ID found');
         return;
       }
 
       try {
         // If clearOffset is true, start from offset 0 to get all messages
-        const userId = user?.$id || 'guest';
+        const userId = user.$id;
         let offset = clearOffset ? 0 : (readUserStorage('tgSyncOffset', userId) || 0);
         
         // Fetch updates with a reasonable limit to avoid overwhelming the API
@@ -559,6 +566,10 @@ export default function App() {
           }
           const msg = update.message;
           if (!msg) continue;
+
+          // Only process messages from the user's configured chat — prevents
+          // files sent to the bot from OTHER chats (other users) from appearing
+          if (String(msg.chat?.id) !== String(tgChatId)) continue;
 
           let tgFile = null;
           let type = 'other';
@@ -637,7 +648,7 @@ export default function App() {
                 fileId: tgFile.file_id,
                 extension: getExtensionFromName(name) || type,
                 size: sizeStr,
-                userId: user?.$id || 'default',
+                userId: user.$id,
                 fileName: name,
               });
               existingIds.add(telegramKey);
@@ -703,11 +714,15 @@ export default function App() {
       window.removeEventListener('telegramSyncRequested', manualSyncListener);
       window.removeEventListener('telegramFullSyncRequested', fullSyncListener);
     };
-  }, [auth]); // Re-run when files loads initially or auth changes
+  }, [auth, user?.$id]); // Re-run when auth changes or when the active user switches
 
   const handleLogout = async () => {
     try {
+      if (user?.$id) {
+        saveLoginLog({ userId: user.$id, email: user.email, event: 'logout', status: 'success' });
+      }
       await account.deleteSession('current');
+      setFiles(initialFiles);
       setAuth(false);
       setUser(null);
     } catch (e) {
@@ -1004,11 +1019,20 @@ export default function App() {
               const u = await account.get();
               setUser(u);
               setAuth(true);
+              const logResult = await saveLoginLog({ userId: u.$id, email: u.email, event: 'login', status: 'success' });
+              if (logResult?.rlsError) {
+                // INSERT blocked by RLS — store a flag so LoginLogPage can show the fix instructions
+                localStorage.setItem('tDrive:loginLogRLSError', '1');
+                console.error('Login log blocked by Supabase RLS. Fix: run "ALTER TABLE login_logs DISABLE ROW LEVEL SECURITY;" in Supabase SQL editor.');
+              } else if (logResult) {
+                // Successful insert — clear any stale RLS error flag
+                localStorage.removeItem('tDrive:loginLogRLSError');
+              }
               router.replace('/dashboard');
             } catch(e) {
               console.error(e);
             }
-          }} 
+          }}
           onBack={() => router.push('/')}
           onSwitchMode={(mode) => router.push(mode === 'signup' ? '/registration' : '/login')}
         />
@@ -1067,6 +1091,8 @@ export default function App() {
               <AnalyticsPage isDark={isDark} />
             ) : activeCat === 'settings' ? (
               <SettingsPage isDark={isDark} user={user} setUser={setUser} />
+            ) : activeCat === 'loginlog' ? (
+              <LoginLogPage isDark={isDark} user={user} />
             ) : (
               <Dashboard 
                 isDark={isDark} 

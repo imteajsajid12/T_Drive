@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Ic } from '../../icons';
-import { account } from '../../lib/supabase';
+import { account, saveLoginLog } from '../../lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
 export const LoginPage = ({ isDark, onLogin, onBack, initialMode = 'signin', onSwitchMode }) => {
@@ -45,8 +45,14 @@ export const LoginPage = ({ isDark, onLogin, onBack, initialMode = 'signin', onS
       onLogin(); // Tell App.jsx we are logged in
     } catch (err) {
       console.error(err);
+      // Log the failed attempt (no user_id since auth failed; use email to identify)
+      saveLoginLog({
+        userId: 'unknown',
+        email,
+        event: 'attempt',
+        status: 'failed',
+      });
       if (err.message && err.message.toLowerCase().includes('blocked')) {
-        // Clear local storage and instruct the user to use a different email
         try {
           localStorage.removeItem('cookieFallback');
           await account.deleteSession('current').catch(() => {});

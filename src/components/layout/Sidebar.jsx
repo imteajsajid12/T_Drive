@@ -11,6 +11,7 @@ export const Sidebar = ({ cat, setCat, collapsed, setCollapsed, isDark, mob, set
     { id: 'music', label: 'Music', Icon: Ic.Music },
     { id: 'doc', label: 'Documents', Icon: Ic.Doc },
     { id: 'analytics', label: 'Analytics', Icon: Ic.BarChart },
+    { id: 'loginlog', label: 'Login Log', Icon: Ic.Activity },
     { id: 'settings', label: 'Settings', Icon: Ic.Settings },
   ];
   const content = (

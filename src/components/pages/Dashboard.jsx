@@ -59,6 +59,12 @@ export const Dashboard = ({
   const [nameQuery, setNameQuery] = useState(q || '');
   const [minSizeKB, setMinSizeKB] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE_OPTIONS = [12, 24, 48, 100];
+  const [pageSize, setPageSize] = useState(() => {
+    if (typeof localStorage === 'undefined') return 24;
+    const saved = parseInt(localStorage.getItem('tDrive:pageSize'), 10);
+    return [12, 24, 48, 100].includes(saved) ? saved : 24;
+  });
   const [selectedIds, setSelectedIds] = useState(new Set());
   const isSelectMode = selectedIds.size > 0;
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || 'there';
@@ -144,18 +150,24 @@ export const Dashboard = ({
     }),
     [filt]
   );
-  const PAGE_SIZE = 24;
   const shownFiles = isHomeRecent ? sortedByRecent : filt;
-  const totalPages = Math.max(1, Math.ceil(shownFiles.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(shownFiles.length / pageSize));
   const paginatedFiles = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return shownFiles.slice(start, start + PAGE_SIZE);
-  }, [shownFiles, currentPage]);
+    const start = (currentPage - 1) * pageSize;
+    return shownFiles.slice(start, start + pageSize);
+  }, [shownFiles, currentPage, pageSize]);
   const previewableFiles = shownFiles.filter((file) => file.type === 'image' || file.type === 'video');
 
   useEffect(() => {
     setCurrentPage(1);
   }, [cat, q, filterType, minSizeKB]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('tDrive:pageSize', String(pageSize));
+    }
+  }, [pageSize]);
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
@@ -329,7 +341,7 @@ export const Dashboard = ({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 80, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl border"
+            className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl border"
             style={{
               background: isDark ? 'rgba(17,24,39,0.92)' : 'rgba(255,255,255,0.95)',
               borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)',
@@ -532,7 +544,7 @@ export const Dashboard = ({
               <Ic.Folder /> {q ? 'Search Results' : cat === 'home' ? 'Recent Files' : `${cat.charAt(0).toUpperCase() + cat.slice(1)} Files`}
             </h2>
             <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              {shownFiles.length === 0 ? 'No files' : `${Math.min((currentPage - 1) * PAGE_SIZE + 1, shownFiles.length)}-${Math.min(currentPage * PAGE_SIZE, shownFiles.length)} of ${shownFiles.length} files`} {isHomeRecent && filt.length > shownFiles.length ? `(of ${filt.length} total)` : ''}
+              {shownFiles.length === 0 ? 'No files' : `${Math.min((currentPage - 1) * pageSize + 1, shownFiles.length)}–${Math.min(currentPage * pageSize, shownFiles.length)} of ${shownFiles.length} files`} {isHomeRecent && filt.length > shownFiles.length ? `(of ${filt.length} total)` : ''}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -767,11 +779,28 @@ export const Dashboard = ({
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                   <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    Showing <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>{Math.min((currentPage - 1) * PAGE_SIZE + 1, shownFiles.length)}</span> to <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>{Math.min(currentPage * PAGE_SIZE, shownFiles.length)}</span> of <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>{shownFiles.length}</span> files
+                    Showing <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>{Math.min((currentPage - 1) * pageSize + 1, shownFiles.length)}</span> to <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>{Math.min(currentPage * pageSize, shownFiles.length)}</span> of <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>{shownFiles.length}</span> files
                   </p>
-                  <div className={`inline-flex items-center gap-2 self-start sm:self-auto px-3 py-1.5 rounded-full text-[11px] font-bold ${isDark ? 'bg-gray-700/70 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                    <Ic.List />
-                    <span>{PAGE_SIZE} per page</span>
+                  {/* Per-page selector */}
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <span className={`text-[11px] font-semibold ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Per page</span>
+                    <div className={`flex items-center gap-1 p-1 rounded-xl ${isDark ? 'bg-gray-700/60' : 'bg-gray-100'}`}>
+                      {PAGE_SIZE_OPTIONS.map(size => (
+                        <button
+                          key={size}
+                          type="button"
+                          onClick={() => setPageSize(size)}
+                          className={`min-w-8 h-7 px-2.5 rounded-lg text-[11px] font-bold transition-all
+                            ${pageSize === size
+                              ? 'bg-gradient-to-r from-emerald-500 to-teal-400 text-white shadow-md shadow-emerald-500/25'
+                              : isDark
+                                ? 'text-gray-400 hover:bg-gray-600 hover:text-white'
+                                : 'text-gray-500 hover:bg-white hover:text-gray-800 hover:shadow-sm'}`}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
