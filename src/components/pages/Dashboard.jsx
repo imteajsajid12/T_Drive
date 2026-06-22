@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Ic } from '../../icons';
@@ -66,6 +67,8 @@ export const Dashboard = ({
     return [12, 24, 48, 100].includes(saved) ? saved : 24;
   });
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [deleteProgress, setDeleteProgress] = useState({ active: false, current: 0, total: 0, label: '', done: false });
+  const [mounted, setMounted] = useState(false);
   const isSelectMode = selectedIds.size > 0;
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || 'there';
 
@@ -158,6 +161,8 @@ export const Dashboard = ({
   }, [shownFiles, currentPage, pageSize]);
   const previewableFiles = shownFiles.filter((file) => file.type === 'image' || file.type === 'video');
 
+  useEffect(() => { setMounted(true); }, []);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [cat, q, filterType, minSizeKB]);
@@ -226,7 +231,7 @@ export const Dashboard = ({
 
     const { isConfirmed } = await Swal.fire({
       title: `Delete ${ids.length} file${ids.length > 1 ? 's' : ''}?`,
-      text: 'This will permanently remove the selected files.',
+      text: 'This will permanently remove the selected files from Telegram and Supabase.',
       icon: 'warning',
       iconColor: '#ef4444',
       showCancelButton: true,
@@ -246,47 +251,30 @@ export const Dashboard = ({
 
     if (!isConfirmed) return;
 
-    // Clear selection immediately so UI feels snappy
-    clearSelection();
-
-    // Show a progress loader
-    Swal.fire({
-      title: `Deleting ${ids.length} file${ids.length > 1 ? 's' : ''}…`,
-      text: 'Please wait.',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      background: isDark ? '#1e293b' : '#ffffff',
-      color: isDark ? '#f1f5f9' : '#1e293b',
-      customClass: { popup: 'rounded-3xl shadow-2xl' },
-      didOpen: () => Swal.showLoading(),
+    // Capture names before any deletions — files prop updates after each one
+    const fileNames = {};
+    ids.forEach(id => {
+      const f = files.find(fl => fl.id === id);
+      if (f) fileNames[id] = f.name;
     });
 
-    // Use silent delete if available (no per-file dialogs), otherwise fall back to onDelete
+    clearSelection();
+
     const deleteFn = onDeleteMany || onDelete;
 
-    // Sequential to respect Telegram API rate limits
-    for (const id of ids) {
+    // Sequential to respect Telegram API rate limits — update progress after each
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i];
+      const label = fileNames[id] || '';
+      setDeleteProgress({ active: true, current: i, total: ids.length, label, done: false });
       await deleteFn(id);
     }
 
-    Swal.fire({
-      title: 'Done!',
-      text: `${ids.length} file${ids.length > 1 ? 's' : ''} removed.`,
-      icon: 'success',
-      iconColor: '#10b981',
-      confirmButtonColor: '#10b981',
-      confirmButtonText: 'OK',
-      timer: 2000,
-      timerProgressBar: true,
-      background: isDark ? '#1e293b' : '#ffffff',
-      color: isDark ? '#f1f5f9' : '#1e293b',
-      customClass: {
-        popup: 'rounded-3xl shadow-2xl',
-        confirmButton: 'px-6 py-2.5 rounded-xl font-bold text-white',
-      },
-    });
-  }, [selectedIds, onDelete, onDeleteMany, clearSelection, isDark]);
+    // Hold at 100% briefly so user sees completion, then show done state
+    setDeleteProgress({ active: true, current: ids.length, total: ids.length, label: '', done: true });
+    await new Promise(r => setTimeout(r, 700));
+    setDeleteProgress({ active: false, current: 0, total: 0, label: '', done: false });
+  }, [selectedIds, files, onDelete, onDeleteMany, clearSelection, isDark]);
   const telegramLocked = !telegramReady;
   const telegramActionsDisabled = telegramConfigLoading || telegramLocked;
 
@@ -330,66 +318,250 @@ export const Dashboard = ({
         </motion.div>
       )}
 
-      {/* ── Bulk-select floating toolbar ──────────────────────────────────────────
-          Slides in from the bottom when one or more files are selected.
-      ──────────────────────────────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {isSelectMode && (
-          <motion.div
-            key="bulk-toolbar"
-            initial={{ y: 80, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 80, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl border"
-            style={{
-              background: isDark ? 'rgba(17,24,39,0.92)' : 'rgba(255,255,255,0.95)',
-              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)',
-              backdropFilter: 'blur(20px)',
-            }}
-          >
-            {/* Count badge */}
-            <span className="flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-500">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              {selectedIds.size} selected
-            </span>
+      {/* Toolbar + progress are rendered via React portals (directly into document.body).
+          This bypasses the CSS stacking context created by Framer Motion's transform
+          animations on the parent motion.div, which would break position:fixed. */}
+      {mounted && createPortal(
+        <>
+          {/* ── Bulk-select toolbar ─────────────────────────────────────────────
+              Mobile: full-width bar above mobile nav
+              Desktop: centered floating pill
+          ───────────────────────────────────────────────────────────────────── */}
+          <AnimatePresence>
+            {isSelectMode && (
+              <motion.div
+                key="bulk-toolbar"
+                initial={{ y: 80, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 80, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                style={{
+                  position: 'fixed',
+                  zIndex: 9999,
+                  background: isDark ? 'rgba(15,23,42,0.97)' : 'rgba(255,255,255,0.98)',
+                  backdropFilter: 'blur(24px)',
+                  WebkitBackdropFilter: 'blur(24px)',
+                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.09)'}`,
+                  borderRadius: '1rem',
+                  boxShadow: isDark
+                    ? '0 25px 50px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05)'
+                    : '0 25px 50px -12px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.03)',
+                }}
+                className="left-3 right-3 bottom-20 md:left-0 md:right-0 md:mx-auto md:bottom-6 md:w-max"
+              >
+                {/* Mobile layout (< md) */}
+                <div className="flex items-center justify-between gap-2 px-4 py-3 md:hidden">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`flex items-center gap-1.5 text-sm font-black px-3 py-1.5 rounded-xl flex-shrink-0
+                      ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      {selectedIds.size}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={allOnPageSelected ? clearSelection : selectAllOnPage}
+                      className={`text-xs font-semibold px-2.5 py-1.5 rounded-xl transition-colors flex-shrink-0
+                        ${isDark ? 'bg-gray-700/80 text-gray-300 hover:bg-gray-600 hover:text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                    >
+                      {allOnPageSelected ? 'Deselect' : 'Select all'}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleBulkDelete}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 active:scale-95 transition-all shadow-lg shadow-red-500/30"
+                    >
+                      <Ic.Trash />
+                      <span>Delete {selectedIds.size}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearSelection}
+                      aria-label="Cancel selection"
+                      className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors flex-shrink-0
+                        ${isDark ? 'text-gray-500 hover:bg-gray-700 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'}`}
+                    >
+                      <Ic.X />
+                    </button>
+                  </div>
+                </div>
 
-            {/* Select / Deselect all on page */}
-            <button
-              type="button"
-              onClick={allOnPageSelected ? clearSelection : selectAllOnPage}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors ${isDark ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'}`}
-            >
-              {allOnPageSelected ? 'Deselect page' : 'Select page'}
-            </button>
+                {/* Desktop layout (≥ md) */}
+                <div className="hidden md:flex items-center gap-3 px-5 py-3">
+                  <span className="flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-500">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    {selectedIds.size} selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={allOnPageSelected ? clearSelection : selectAllOnPage}
+                    className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors
+                      ${isDark ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'}`}
+                  >
+                    {allOnPageSelected ? 'Deselect page' : 'Select page'}
+                  </button>
+                  <div className={`w-px h-6 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`} />
+                  <button
+                    type="button"
+                    onClick={handleBulkDelete}
+                    className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 active:scale-95 transition-all shadow-lg shadow-red-500/30"
+                  >
+                    <Ic.Trash />
+                    Delete {selectedIds.size}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearSelection}
+                    aria-label="Cancel selection"
+                    className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors
+                      ${isDark ? 'text-gray-400 hover:bg-gray-700 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'}`}
+                  >
+                    <Ic.X />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-            {/* Divider */}
-            <div className={`w-px h-6 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`} />
+          {/* ── Delete progress overlay ──────────────────────────────────────────── */}
+          <AnimatePresence>
+            {deleteProgress.active && (
+              <motion.div
+                key="delete-progress"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  zIndex: 99999,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(0,0,0,0.72)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                }}
+              >
+                <motion.div
+                  initial={{ scale: 0.86, opacity: 0, y: 28 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.9, opacity: 0, y: 16 }}
+                  transition={{ type: 'spring', stiffness: 360, damping: 26 }}
+                  style={{
+                    width: '100%',
+                    maxWidth: '22rem',
+                    margin: '0 1rem',
+                    padding: '2rem',
+                    borderRadius: '1.5rem',
+                    boxShadow: '0 32px 64px -12px rgba(0,0,0,0.6)',
+                    background: isDark ? '#0f172a' : '#ffffff',
+                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`,
+                  }}
+                >
+                  {/* Icon */}
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.25rem' }}>
+                    <div style={{
+                      width: 64, height: 64, borderRadius: '1rem',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: deleteProgress.done ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.10)',
+                    }}>
+                      {deleteProgress.done ? (
+                        <motion.div
+                          initial={{ scale: 0, rotate: -20 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+                          style={{ color: '#10b981' }}
+                        >
+                          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          animate={{ scale: [1, 1.15, 1] }}
+                          transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut' }}
+                          style={{ color: '#ef4444' }}
+                        >
+                          <Ic.Trash />
+                        </motion.div>
+                      )}
+                    </div>
+                  </div>
 
-            {/* Bulk delete */}
-            <button
-              type="button"
-              onClick={handleBulkDelete}
-              className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 active:scale-95 transition-all shadow-lg shadow-red-500/30"
-            >
-              <Ic.Trash />
-              Delete {selectedIds.size}
-            </button>
+                  {/* Title */}
+                  <p style={{
+                    fontSize: '1.25rem', fontWeight: 900, textAlign: 'center',
+                    marginBottom: '0.25rem',
+                    color: isDark ? '#f8fafc' : '#0f172a',
+                  }}>
+                    {deleteProgress.done ? 'All Done!' : 'Deleting Files…'}
+                  </p>
 
-            {/* Cancel */}
-            <button
-              type="button"
-              onClick={clearSelection}
-              aria-label="Cancel selection"
-              className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${isDark ? 'text-gray-400 hover:bg-gray-700 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'}`}
-            >
-              <Ic.X />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                  {/* Subtitle */}
+                  <p style={{
+                    fontSize: '0.875rem', textAlign: 'center', marginBottom: '1.5rem',
+                    color: isDark ? '#94a3b8' : '#64748b',
+                  }}>
+                    {deleteProgress.done
+                      ? `${deleteProgress.total} file${deleteProgress.total > 1 ? 's' : ''} removed`
+                      : `Processing ${deleteProgress.current + 1} of ${deleteProgress.total}`}
+                  </p>
+
+                  {/* Progress bar track */}
+                  <div style={{
+                    height: 10, borderRadius: 999, overflow: 'hidden', marginBottom: '0.75rem',
+                    background: isDark ? '#1e293b' : '#f1f5f9',
+                  }}>
+                    <motion.div
+                      style={{
+                        height: '100%', borderRadius: 999,
+                        background: deleteProgress.done
+                          ? 'linear-gradient(90deg,#10b981,#14b8a6)'
+                          : 'linear-gradient(90deg,#ef4444,#f43f5e)',
+                      }}
+                      animate={{
+                        width: deleteProgress.done
+                          ? '100%'
+                          : `${deleteProgress.total > 0
+                              ? Math.max(4, (deleteProgress.current / deleteProgress.total) * 100)
+                              : 4}%`,
+                      }}
+                      transition={{ duration: 0.4, ease: 'easeOut' }}
+                    />
+                  </div>
+
+                  {/* Bottom row: filename + percentage */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{
+                      fontSize: '0.7rem', color: isDark ? '#475569' : '#94a3b8',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      maxWidth: '68%',
+                    }}>
+                      {!deleteProgress.done && deleteProgress.label
+                        ? `"${deleteProgress.label.length > 32 ? deleteProgress.label.slice(0, 32) + '…' : deleteProgress.label}"`
+                        : ''}
+                    </span>
+                    <span style={{
+                      fontSize: '1.1rem', fontWeight: 900, fontVariantNumeric: 'tabular-nums', flexShrink: 0,
+                      color: deleteProgress.done
+                        ? (isDark ? '#34d399' : '#059669')
+                        : (isDark ? '#f8fafc' : '#0f172a'),
+                    }}>
+                      {deleteProgress.done
+                        ? '100%'
+                        : `${deleteProgress.total > 0
+                            ? Math.round((deleteProgress.current / deleteProgress.total) * 100)
+                            : 0}%`}
+                    </span>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>,
+        document.body
+      )}
 
       {/* Header & Stats */}
       {cat === 'home' && (
@@ -755,15 +927,18 @@ export const Dashboard = ({
         
         {shownFiles.length > 0 ? (
             <>
-            <motion.div variants={containerVariants} className={isGrid ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6" : "flex flex-col gap-3"}>
-              <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              layout
+              variants={containerVariants}
+              className={isGrid ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6" : "flex flex-col gap-3"}
+            >
+              <AnimatePresence mode="popLayout" initial={false}>
                 {paginatedFiles.map((f, i) => (
-                  <motion.div 
-                    key={f.id} 
+                  <motion.div
+                    key={f.id}
                     variants={itemVariants}
-                    layout 
-                    exit={{ opacity: 0, scale: 0.8, filter: "blur(5px)" }} 
-                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    layout="position"
+                    exit={{ opacity: 0, scale: 0.75, filter: 'blur(4px)', transition: { duration: 0.18 } }}
                   >
                     <FileCard file={f} isDark={isDark} onPreview={() => openPreview({ file: f, items: previewableFiles, index: previewableFiles.findIndex((item) => item.id === f.id) })} isGrid={isGrid} idx={i} onDelete={onDelete} isSelected={selectedIds.has(f.id)} onToggleSelect={toggleSelectFile} isSelectMode={isSelectMode} />
                   </motion.div>
