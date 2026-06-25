@@ -246,6 +246,36 @@ export const updateFileNameInDb = async (fileId, userId, fileName) => {
 };
 
 /**
+ * Returns a Set<string> of all lowercase, trimmed real filenames already stored
+ * for this user. Used for duplicate-name detection before upload.
+ * Placeholder names (telegram_*, file_*, tg_file*) are excluded so they
+ * never cause false "already exists" skips.
+ */
+export const getExistingFileNames = async (userId) => {
+  if (!userId) return new Set();
+  try {
+    const { data, error } = await supabase
+      .from('storage')
+      .select('name')
+      .eq('user_id', String(userId));
+
+    if (error) {
+      if (error.code === '42P01') return new Set(); // table not yet created
+      throw error;
+    }
+
+    const realNames = (data || [])
+      .map(r => r.name?.trim())
+      .filter(n => n && !n.startsWith('telegram_') && !n.startsWith('file_') && !n.startsWith('tg_file'));
+
+    return new Set(realNames.map(n => n.toLowerCase()));
+  } catch (err) {
+    console.error('[getExistingFileNames]', err);
+    return new Set(); // fail-open: let upload proceed rather than block everything
+  }
+};
+
+/**
  * Load all file metadata rows for a user.
  * Returns the `name` column as doc.name — App.jsx reads doc.name to build the display name.
  */

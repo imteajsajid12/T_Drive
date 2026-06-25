@@ -1125,12 +1125,13 @@ export default function App() {
         />
 
         {/* Modals */}
-        <UploadModal 
-          open={upOpen} 
-          close={() => setUpOpen(false)} 
+        <UploadModal
+          open={upOpen}
+          close={() => setUpOpen(false)}
           isDark={isDark}
-          user={user} 
-          onUpload={handleUpload} 
+          user={user}
+          files={files}
+          onUpload={handleUpload}
           disabled={telegramConfigState.loading || !telegramConfigState.ready}
           onConfigureTelegram={() => handleSetCat('settings')}
         />
